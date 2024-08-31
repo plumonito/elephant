@@ -3,3 +3,4 @@ opencv-python
 pillow
 tqdm
 line_profiler
+decord

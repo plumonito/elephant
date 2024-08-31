@@ -5,6 +5,7 @@ import cv2
 import json
 from pathlib import Path
 from line_profiler import profile
+from decord import VideoReader
 
 logger = logging.getLogger(__name__)
 
@@ -22,19 +23,19 @@ def detect_motion(
     cut_left=None,
 ):
     # Open the video file
-    cap = cv2.VideoCapture(video_path)
+    vr = VideoReader(str(video_path))
 
-    fps = cap.get(cv2.CAP_PROP_FPS)
+    fps = 28
     frame_step = int(
         fps * step_sec
     )  # Number of frames to skip to achieve the desired interval
 
-    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    frame_count = len(vr)
     iter_count = frame_count // frame_step
 
     motion_periods = []
 
-    ret, frame1 = cap.read()
+    frame1 = vr[0]
     frame_index = 0
 
     width = frame1.shape[0]
@@ -45,6 +46,7 @@ def detect_motion(
     crop_yy = height - int(cut_bottom / 100 * height if cut_bottom else 0)
 
     def frame_preprocess(frame):
+        frame = frame.asnumpy()
         frame = frame[crop_x:crop_xx, crop_y:crop_yy]
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         down_scale = cv2.resize(gray, (0, 0), fx=0.5, fy=0.5)
@@ -56,14 +58,8 @@ def detect_motion(
     motion_start = None
 
     for _ in tqdm(range(iter_count)):
-        if not ret:
-            break
-
         # Skip to the next frame after the desired interval
-        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index + frame_step)
-        ret, frame2 = cap.read()
-        if not ret:
-            break
+        frame2 = vr[frame_index + frame_step]
 
         frame2 = frame_preprocess(frame2)
 
@@ -142,9 +138,6 @@ def detect_motion(
                 "end_frames": frame_index,
             }
         )
-
-    # Release the video capture object
-    cap.release()
 
     # Save the motion periods to a JSON file
     output_json = video_path.with_suffix(".json")
