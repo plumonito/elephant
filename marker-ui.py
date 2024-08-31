@@ -7,12 +7,15 @@ from PIL import Image, ImageTk
 import os
 import json
 
+
 class VideoPlayer:
     def __init__(self, root, folder_path):
         self.root = root
 
         self.folder_path = folder_path
-        self.video_files = [f for f in os.listdir(self.folder_path) if f.endswith(".mp4")]
+        self.video_files = [
+            f for f in os.listdir(self.folder_path) if f.endswith(".mp4")
+        ]
 
         if not self.video_files:
             messagebox.showerror("Error", "No .mp4 files found in the selected folder.")
@@ -32,7 +35,14 @@ class VideoPlayer:
         self.marker_canvas.pack(fill="x", expand=True)
 
         # Scrubber
-        self.scrubber = tk.Scale(self.scrubber_frame, from_=0, to=1, orient="horizontal", command=self.on_scrub, showvalue=False)
+        self.scrubber = tk.Scale(
+            self.scrubber_frame,
+            from_=0,
+            to=1,
+            orient="horizontal",
+            command=self.on_scrub,
+            showvalue=False,
+        )
         self.scrubber.pack(fill="x", expand=True)
 
         # Control buttons
@@ -67,14 +77,16 @@ class VideoPlayer:
     def load_video(self, index):
         video_file = self.video_files[index]
         self.video_path = os.path.join(self.folder_path, video_file)
-        json_file = os.path.join(self.folder_path, os.path.splitext(video_file)[0] + '.json')
+        json_file = os.path.join(
+            self.folder_path, os.path.splitext(video_file)[0] + ".json"
+        )
 
         if not os.path.exists(json_file):
             messagebox.showerror("Error", f"JSON file {json_file} not found.")
             self.root.quit()
             return
 
-        with open(json_file, 'r') as f:
+        with open(json_file, "r") as f:
             time_data = json.load(f)
 
         self.cap = cv2.VideoCapture(self.video_path)
@@ -91,8 +103,7 @@ class VideoPlayer:
 
         # Convert JSON time data to frame numbers
         self.marked_frames = [
-            (int(t["start_frames"]), int(t["end_frames"]))
-            for t in time_data
+            (int(t["start_frames"]), int(t["end_frames"])) for t in time_data
         ]
 
         # Initialize scrubber and draw marks
@@ -115,10 +126,14 @@ class VideoPlayer:
 
             # Create a red line and tag it with a unique identifier
             line_id = f"mark_{idx}"
-            self.marker_canvas.create_line(start_pos, 20, end_pos, 20, fill="red", width=50, tags=line_id)
+            self.marker_canvas.create_line(
+                start_pos, 20, end_pos, 20, fill="red", width=50, tags=line_id
+            )
 
             # Bind the click event to the line
-            self.marker_canvas.tag_bind(line_id, "<Button-1>", lambda event, idx=idx: self.on_mark_click(idx))
+            self.marker_canvas.tag_bind(
+                line_id, "<Button-1>", lambda event, idx=idx: self.on_mark_click(idx)
+            )
 
     def on_mark_click(self, idx):
         """Handles click event on a mark, jumps to the corresponding frame range."""
@@ -136,7 +151,9 @@ class VideoPlayer:
         # Create a new Toplevel window
         popup = tk.Toplevel(self.root)
         popup.title("Select Name")
-        popup.geometry(f"+{event.x_root}+{event.y_root}")  # Position the popup near the click
+        popup.geometry(
+            f"+{event.x_root}+{event.y_root}"
+        )  # Position the popup near the click
 
         # List of names for the dropdown
         names = ["Name1", "Name2", "Name3"]  # Modify with actual names
@@ -151,7 +168,13 @@ class VideoPlayer:
         combobox.current(0)  # Set the first name as default
 
         # Save button
-        save_button = tk.Button(popup, text="Save", command=lambda: self.save_and_close(popup, combobox.get(), mapped_x, mapped_y))
+        save_button = tk.Button(
+            popup,
+            text="Save",
+            command=lambda: self.save_and_close(
+                popup, combobox.get(), mapped_x, mapped_y
+            ),
+        )
         save_button.pack(pady=5)
 
     def save_and_close(self, popup, selected_name, x, y):
@@ -171,14 +194,15 @@ class VideoPlayer:
         data = {"x": x, "y": y, "name": name}
 
         if os.path.exists(json_file):
-            with open(json_file, 'r+') as f:
+            with open(json_file, "r+") as f:
                 points = json.load(f)
                 points.append(data)
                 f.seek(0)
                 json.dump(points, f, indent=4)
         else:
-            with open(json_file, 'w') as f:
+            with open(json_file, "w") as f:
                 json.dump([data], f, indent=4)
+
     def play(self):
         if not self.playing:
             self.playing = True
@@ -221,7 +245,10 @@ class VideoPlayer:
         if self.canvas_width <= 0 or self.canvas_height <= 0:
             return
 
-        self.scale_factor = min(self.canvas_width / self.original_width, self.canvas_height / self.original_height)
+        self.scale_factor = min(
+            self.canvas_width / self.original_width,
+            self.canvas_height / self.original_height,
+        )
         new_width = max(1, int(self.original_width * self.scale_factor))
         new_height = max(1, int(self.original_height * self.scale_factor))
 
@@ -254,10 +281,18 @@ class VideoPlayer:
         self.root.destroy()
 
     def update_window_title(self):
-        self.root.title('Video ' + str(self.current_video_index + 1) + ' out of ' + str(len(self.video_files)))
+        self.root.title(
+            "Video "
+            + str(self.current_video_index + 1)
+            + " out of "
+            + str(len(self.video_files))
+        )
+
 
 # Initialize the app
-folder_path = filedialog.askdirectory(title="Select Folder Containing MP4 and JSON Files")
+folder_path = filedialog.askdirectory(
+    title="Select Folder Containing MP4 and JSON Files"
+)
 root = tk.Tk()
 if folder_path:
     player = VideoPlayer(root, folder_path)
