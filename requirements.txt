@@ -4,3 +4,4 @@ pillow
 tqdm
 line_profiler
 decord
+PyQt6
