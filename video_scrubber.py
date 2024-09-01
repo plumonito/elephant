@@ -24,7 +24,23 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self._image_label = QLabel()
+        self._image_label.setScaledContents(True)
         self.setCentralWidget(self._image_label)
+
+        tool_bar = QToolBar()
+        self.addToolBar(tool_bar)
+        self._position_slider = QSlider()
+        self._position_slider.setOrientation(Qt.Horizontal)
+        self._position_slider.setMinimum(0)
+        self._position_slider.setMaximum(100)
+        available_width = self.screen().availableGeometry().width()
+        self._position_slider.setFixedWidth(available_width / 10)
+        self._position_slider.setValue(0)
+        self._position_slider.setTickInterval(10)
+        self._position_slider.setTickPosition(QSlider.TicksBelow)
+        self._position_slider.setToolTip("Position")
+        self._position_slider.valueChanged.connect(self.set_position)
+        tool_bar.addWidget(self._position_slider)
 
         self._video_reader: VideoReader | None = None
         self.timer = QTimer()
@@ -51,6 +67,14 @@ class MainWindow(QMainWindow):
             QImage.Format.Format_BGR888,
         )
         self._image_label.setPixmap(QPixmap.fromImage(self._image))
+        self._image_label.setMinimumSize(1, 1)
+
+    def set_position(self, position):
+        if not self._video_reader:
+            return
+        index = int(len(self._video_reader) * position / 100)
+        self._frame_index = index
+        self.advance_frame()
 
 
 if __name__ == "__main__":
