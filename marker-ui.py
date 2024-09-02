@@ -1,16 +1,26 @@
-import tkinter as tk
-from tkinter import filedialog, messagebox
-from tkinter import ttk
-import cv2
-import threading
-from PIL import Image, ImageTk
-import os
 import json
+import os
+import threading
+import tkinter as tk
+from tkinter import messagebox
+from tkinter import ttk
+
+import cv2
+from PIL import Image, ImageTk
 
 
 class VideoPlayer:
     def __init__(self, root, folder_path):
         self.root = root
+
+        # Init Variables
+        self.cap = None
+        self.playing = False
+        self.frame = None
+        self.canvas_width = 200
+        self.canvas_height = 200
+        self.video_path = False
+        self.skip_scrubber_update = False
 
         self.folder_path = folder_path
         self.video_files = [
@@ -46,10 +56,8 @@ class VideoPlayer:
         self.scrubber.pack(fill="x", expand=True)
 
         # Control buttons
-        self.play_btn = tk.Button(root, text="Play", command=self.play)
-        self.play_btn.pack(side="left")
-        self.pause_btn = tk.Button(root, text="Pause", command=self.pause)
-        self.pause_btn.pack(side="left")
+        self.play_stop_btn = tk.Button(root, text="Play", command=self.toggle_play_pause)
+        self.play_stop_btn.pack(side="left")
 
         self.next_btn = tk.Button(root, text="Next Video", command=self.next_video)
         self.next_btn.pack(side="left")
@@ -58,17 +66,13 @@ class VideoPlayer:
         self.prev_btn.pack(side="left")
 
         # Bind resizing event to adjust video
-        self.root.bind("<Configure>", self.on_resize)
+        self.canvas.bind("<Configure>", self.on_resize)
 
         # Bind space bar to play/pause
         self.root.bind("<space>", self.toggle_play_pause)
 
         # Bind click event on the video
         self.canvas.bind("<Button-1>", self.on_video_click)
-
-        # Initialize attributes
-        self.canvas_width = 1
-        self.canvas_height = 1
 
         self.current_video_index = 0
         self.load_video(self.current_video_index)
@@ -90,8 +94,6 @@ class VideoPlayer:
             time_data = json.load(f)
 
         self.cap = cv2.VideoCapture(self.video_path)
-        self.playing = False
-        self.paused = False
         self.frame = None
 
         # Get video properties
@@ -109,8 +111,6 @@ class VideoPlayer:
         # Initialize scrubber and draw marks
         self.scrubber.config(to=self.total_frames)
         self.draw_marks_on_scrubber()
-
-        # Update the first frame
         self.update_frame(single_frame=True)
 
     def draw_marks_on_scrubber(self):
@@ -203,30 +203,31 @@ class VideoPlayer:
             with open(json_file, "w") as f:
                 json.dump([data], f, indent=4)
 
-    def play(self):
-        if not self.playing:
-            self.playing = True
-            threading.Thread(target=self.update_frame, daemon=True).start()
-
-    def pause(self):
-        self.playing = False
-
     def toggle_play_pause(self, event=None):
         if self.playing:
-            self.pause()
+            self.playing = False
+            self.play_stop_btn.config(text="Play")
         else:
-            self.play()
+            self.playing = True
+            threading.Thread(target=self.update_frame, daemon=True).start()
+            self.play_stop_btn.config(text="Stop")
 
     def on_scrub(self, value):
+        if self.skip_scrubber_update:
+            self.skip_scrubber_update = False
+            return
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, int(value))
         self.update_frame(single_frame=True)
 
     def on_resize(self, event):
         # Update canvas dimensions and redraw marks
-        self.canvas_width = max(1, event.width)
-        self.canvas_height = max(1, event.height - 100)
+        self.canvas_width = int(event.width)
+        self.canvas_height = int(event.height)
+        print('Width: %s', event.width)
+        print('Height: %s', event.height)
         # Only update frame if resizing might affect the display
         self.draw_marks_on_scrubber()
+        self.update_frame(single_frame=True)
 
     def update_frame(self, single_frame=False):
         if not self.playing and not single_frame:
@@ -235,6 +236,7 @@ class VideoPlayer:
         ret, self.frame = self.cap.read()
         if ret:
             self.display_frame(self.frame)
+            self.skip_scrubber_update = True
             self.scrubber.set(int(self.cap.get(cv2.CAP_PROP_POS_FRAMES)))
             if not single_frame:
                 self.root.after(int(1000 / self.fps), self.update_frame)
@@ -276,7 +278,6 @@ class VideoPlayer:
         self.update_window_title()
 
     def on_closing(self):
-        self.playing = False
         self.cap.release()
         self.root.destroy()
 
@@ -290,9 +291,7 @@ class VideoPlayer:
 
 
 # Initialize the app
-folder_path = filedialog.askdirectory(
-    title="Select Folder Containing MP4 and JSON Files"
-)
+folder_path = 'data'
 root = tk.Tk()
 if folder_path:
     player = VideoPlayer(root, folder_path)

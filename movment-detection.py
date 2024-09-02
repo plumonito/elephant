@@ -1,26 +1,26 @@
-from tqdm import tqdm
-import logging
-from tkinter import filedialog
-import cv2
 import json
+import logging
 from pathlib import Path
-from line_profiler import profile
+
+import cv2
 from decord import VideoReader
+from line_profiler import profile
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
 
 @profile
 def detect_motion(
-    video_path: Path,
-    movement_threshold=5000,
-    min_contour_area=500,
-    step_sec=3,
-    debug=False,
-    cut_top=None,
-    cut_bottom=None,
-    cut_right=None,
-    cut_left=None,
+        video_path: Path,
+        movement_threshold=5000,
+        min_contour_area=500,
+        step_sec=3,
+        debug=False,
+        cut_top=None,
+        cut_bottom=None,
+        cut_right=None,
+        cut_left=None,
 ):
     # Open the video file
     vr = VideoReader(str(video_path))
@@ -150,12 +150,11 @@ def detect_motion(
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
 
-    # Usage
-    # folder_path = Path(
-    #     filedialog.askdirectory(title="Select Folder Containing MP4 and JSON Files")
-    # )
     folder_path = Path("data")
     video_files = [f for f in folder_path.glob("*.mp4")]
+
+    if len(video_files) == 0:
+        print("No Videos found!")
 
     for file in video_files:
         logger.info("Processing: %s", file)
