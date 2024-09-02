@@ -16,11 +16,14 @@ class VideoPlayer:
         # Init Variables
         self.cap = None
         self.playing = False
+        self.playback_speed = 1  # 1X normal speed
+        self.playback_direction = 1  # 1 for forward, -1 for backward
         self.frame = None
-        self.canvas_width = 200
-        self.canvas_height = 200
+        self.canvas_width = 400
+        self.canvas_height = 400
         self.video_path = False
         self.skip_scrubber_update = False
+        self.current_video_index = 0
 
         self.folder_path = folder_path
         self.video_files = [
@@ -68,13 +71,15 @@ class VideoPlayer:
         # Bind resizing event to adjust video
         self.canvas.bind("<Configure>", self.on_resize)
 
-        # Bind space bar to play/pause
+        # Bind keyboard shortcuts
         self.root.bind("<space>", self.toggle_play_pause)
+        self.root.bind("l", self.increase_speed)
+        self.root.bind("j", self.play_reverse)
+        self.root.bind("k", self.play_normal_speed)
 
         # Bind click event on the video
         self.canvas.bind("<Button-1>", self.on_video_click)
 
-        self.current_video_index = 0
         self.load_video(self.current_video_index)
         self.update_window_title()
 
@@ -233,7 +238,16 @@ class VideoPlayer:
         if not self.playing and not single_frame:
             return
 
+        # Calculate the frame jump based on the speed and direction
+        frame_jump = self.playback_speed * self.playback_direction
+
+        # Set the new frame position
+        current_frame = int(self.cap.get(cv2.CAP_PROP_POS_FRAMES))
+        new_frame = max(0, min(self.total_frames - 1, current_frame + frame_jump))
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, new_frame)
+
         ret, self.frame = self.cap.read()
+
         if ret:
             self.display_frame(self.frame)
             self.skip_scrubber_update = True
@@ -288,6 +302,23 @@ class VideoPlayer:
             + " out of "
             + str(len(self.video_files))
         )
+
+    def increase_speed(self, event=None):
+        if self.playback_direction == 1:
+            self.playback_speed += 4
+        else:
+            self.playback_direction = 1  # Ensure forward direction
+            self.playback_speed = 1
+
+    def play_reverse(self, event=None):
+        if self.playback_direction == -1:
+            self.playback_speed += 4
+        else:
+            self.playback_direction = -1  # Ensure backwards direction
+            self.playback_speed = 2
+    def play_normal_speed(self, event=None):
+        self.playback_speed = 1
+        self.playback_direction = 1  # Reset to normal forward direction
 
 
 # Initialize the app
