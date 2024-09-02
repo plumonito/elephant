@@ -1,7 +1,14 @@
 # sudo apt install python3.10-tk
+numpy
 opencv-python
 pillow
 tqdm
 line_profiler
 decord
 PySide6
+
+# From sam2
+torch
+torchvision
+hydra-core
+iopath
