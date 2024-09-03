@@ -30,7 +30,7 @@ class Sam2Processor:
                 "See e.g. https://github.com/pytorch/pytorch/issues/84936 for a discussion."
             )
 
-        sam2_checkpoint = "sam2_repo/sam2_hiera_large.pt"
+        sam2_checkpoint = "sam2_repo/checkpoints/sam2_hiera_large.pt"
         model_cfg = "sam2_hiera_l.yaml"
 
         sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=self.device_)
