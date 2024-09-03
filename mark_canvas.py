@@ -6,15 +6,14 @@ class MarkCanvas(QWidget):
         super().__init__(parent)
         self.json_data = json_data
         self.slider = slider
-        self.setMinimumHeight(40)  # Adjust height to better display the marks
+        self.setMinimumHeight(5)
 
     def paintEvent(self, event):
         super().paintEvent(event)
         painter = QPainter(self)
 
-        # Set the pen to use a thicker line
         pen = QPen(QColor('red'))
-        pen.setWidth(6)  # Set line thickness here
+        pen.setWidth(6)
         painter.setPen(pen)
 
         width = self.width()

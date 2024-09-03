@@ -1,10 +1,11 @@
 import json
 import os
 import sys
+import threading
 
 import numpy as np
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QImage, QPixmap, QAction
+from PySide6.QtGui import QImage, QPixmap, QAction, QMouseEvent
 from PySide6.QtWidgets import (
     QLabel,
     QApplication,
@@ -16,7 +17,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QWidget,
     QHBoxLayout,
-    QSizePolicy,
+    QSizePolicy, QDialog, QComboBox,
 )
 from decord import VideoReader
 
@@ -28,7 +29,7 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         # Initialize variables
-        self.run_with_sam = False
+        self.run_with_sam = True
         if self.run_with_sam:
             self.sam2_ = Sam2Processor()
         else:
@@ -53,6 +54,7 @@ class MainWindow(QMainWindow):
         self.image_label_ = QLabel()
         self.image_label_.setScaledContents(False)  # Set to False to handle scaling manually
         self.image_label_.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.image_label_.mousePressEvent = self.image_clicked
 
         # Toolbar for controls
         self.toolbar_ = QToolBar()
@@ -143,7 +145,6 @@ class MainWindow(QMainWindow):
         self.position_slider_.setMaximum(self.frame_count_ - 1)
         self.display_image_by_index(0)
 
-        # Update canvas marks (this assumes JSON data is in a local file or hardcoded)
         json_file_path = os.path.join(self.folder_path_, video_file.replace('.mp4', '.json'))
         try:
             with open(json_file_path, 'r') as f:
@@ -266,6 +267,62 @@ class MainWindow(QMainWindow):
         super().resizeEvent(event)
         # Redisplay the image when the window is resized
         self.display_image_by_index(self.frame_index_)
+
+    def image_clicked(self, ev: QMouseEvent):
+        if ev.button() == Qt.MouseButton.LeftButton:
+            localPos = np.array(ev.position().toTuple())
+            labelSize = np.array(self.image_label_.size().toTuple())
+            relPos = localPos / labelSize
+            relPos[0], relPos[1] = relPos[1], relPos[0]
+            pixelPos = relPos * self.image_.shape[0:2]
+            pixelPos[0], pixelPos[1] = pixelPos[1], pixelPos[0]
+            pixelPos = pixelPos.reshape(1, 2)
+
+            if self.run_with_sam:
+                threading.Thread(target=self.do_segment(pixelPos), daemon=True).start()
+            self.show_popup(pixelPos)
+
+    def do_segment(self, pixelPos: np.ndarray) -> None:
+        mask = self.sam2_.process_click(self.image_, pixelPos)
+        mask = mask.astype(np.uint8)
+        masked_image = self.image_ * mask[:, :, np.newaxis]
+        self.display_image(masked_image)
+
+    def show_popup(self, pixelPos):
+        popup = QDialog(self)
+        popup.setWindowTitle("Select Name")
+        popup_layout = QVBoxLayout()
+
+        names = ["Name1", "Name2", "Name3", "sam2"]
+        combobox = QComboBox()
+        combobox.addItems(names)
+        popup_layout.addWidget(combobox)
+
+        save_button = QPushButton("Save")
+        save_button.clicked.connect(lambda: self.save_click_position(popup, pixelPos, combobox.currentText()))
+        popup_layout.addWidget(save_button)
+
+        popup.setLayout(popup_layout)
+        popup.exec()
+
+    def save_click_position(self, popup, pixelPos, selected_name):
+        if selected_name:
+            video_name = os.path.splitext(self.video_files_[self.current_video_index_])[0]
+            json_file = os.path.join(self.folder_path_, f"{video_name}_points.json")
+
+            data = {"x": int(pixelPos[0][0]), "y": int(pixelPos[0][1]), "name": selected_name}
+
+            if os.path.exists(json_file):
+                with open(json_file, "r+") as f:
+                    points = json.load(f)
+                    points.append(data)
+                    f.seek(0)
+                    json.dump(points, f, indent=4)
+            else:
+                with open(json_file, "w") as f:
+                    json.dump([data], f, indent=4)
+
+        popup.accept()
 
 
 if __name__ == "__main__":
