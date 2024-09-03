@@ -8,7 +8,7 @@ decord
 PySide6
 
 # From sam2
-torch
-torchvision
+#torch -> commented because special version needed
+#torchvision -> commented because special version needed
 hydra-core
 iopath

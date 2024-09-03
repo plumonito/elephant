@@ -50,7 +50,7 @@ class MainWindow(QMainWindow):
         self.timer_.setInterval(33)
         self.timer_.timeout.connect(self.advance_frame)
 
-        self.open("data/ELP - Sandbox_ohne_MGMT - 20221215 - 100627.mp4")
+        self.open("data/elephant1.mp4")
         # self.timer_.start()
 
     def open(self, filename: str):
