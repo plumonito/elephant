@@ -17,19 +17,19 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QWidget,
     QHBoxLayout,
-    QSizePolicy, QDialog, QComboBox,
-)
+    QSizePolicy, QDialog, QComboBox, QTextEdit, )
 from decord import VideoReader
 
 from mark_canvas import MarkCanvas
 from sam2_processor import Sam2Processor
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
         # Initialize variables
-        self.run_with_sam = True
+        self.run_with_sam = False
         if self.run_with_sam:
             self.sam2_ = Sam2Processor()
         else:
@@ -51,18 +51,22 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Error", "No .mp4 files found in the selected folder.")
             sys.exit()
 
+        # Create the central widget
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+
+        # Main layout (Horizontal)
+        main_layout = QHBoxLayout(self.central_widget)
+
+        # Left side layout (70% of the width)
+        left_layout = QVBoxLayout()
+
+        # Video display
         self.image_label_ = QLabel()
         self.image_label_.setScaledContents(False)  # Set to False to handle scaling manually
         self.image_label_.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.image_label_.mousePressEvent = self.image_clicked
-
-        # Toolbar for controls
-        self.toolbar_ = QToolBar()
-        self.addToolBar(Qt.BottomToolBarArea, self.toolbar_)
-
-        # Custom widget to hold the two rows
-        control_widget = QWidget()
-        control_layout = QVBoxLayout(control_widget)
+        left_layout.addWidget(self.image_label_)
 
         # Scrubber (QSlider)
         self.position_slider_ = QSlider(Qt.Horizontal)
@@ -72,43 +76,44 @@ class MainWindow(QMainWindow):
         self.position_slider_.setValue(0)
         self.position_slider_.valueChanged.connect(self.set_position)
 
-        # Set up layout
-        layout = QVBoxLayout()
-        self.mark_canvas_ = MarkCanvas([], self.position_slider_)
-        layout.addWidget(self.image_label_)
-
-        container = QWidget()
-        container.setLayout(layout)
-        self.setCentralWidget(container)
 
         # Buttons Layout (Horizontal layout for buttons)
         button_layout = QHBoxLayout()
 
         # Play/Pause Button
-        self.play_pause_action_ = QAction("Play", self)
-        self.play_pause_action_.triggered.connect(self.toggle_play_pause)
-        play_button = QPushButton("Play")
-        play_button.clicked.connect(self.toggle_play_pause)
-        button_layout.addWidget(play_button)
+        self.play_button = QPushButton("Play")
+        self.play_button.clicked.connect(self.toggle_play_pause)
+        button_layout.addWidget(self.play_button)
 
         # Next/Previous Video Buttons
-        self.next_video_action_ = QAction("Next Video", self)
-        self.next_video_action_.triggered.connect(self.next_video)
-        next_button = QPushButton("Next Video")
-        next_button.clicked.connect(self.next_video)
-        button_layout.addWidget(next_button)
+        self.next_button = QPushButton("Next Video")
+        self.next_button.clicked.connect(self.next_video)
+        button_layout.addWidget(self.next_button)
 
-        self.prev_video_action_ = QAction("Previous Video", self)
-        self.prev_video_action_.triggered.connect(self.prev_video)
-        prev_button = QPushButton("Previous Video")
-        prev_button.clicked.connect(self.prev_video)
-        button_layout.addWidget(prev_button)
+        self.prev_button = QPushButton("Previous Video")
+        self.prev_button.clicked.connect(self.prev_video)
+        button_layout.addWidget(self.prev_button)
 
-        control_layout.addWidget(self.mark_canvas_)
-        control_layout.addWidget(self.position_slider_)
-        control_layout.addLayout(button_layout)
+        # Add MarkCanvas to the left layout
+        self.mark_canvas_ = MarkCanvas([], self.position_slider_)
 
-        self.toolbar_.addWidget(control_widget)
+        left_layout.addWidget(self.mark_canvas_)
+        left_layout.addWidget(self.position_slider_)
+        left_layout.addLayout(button_layout)
+
+        # Add left layout to the main layout
+        main_layout.addLayout(left_layout, 7)  # 70% width
+
+        # Right side layout (30% of the width)
+        right_layout = QVBoxLayout()
+
+        # JSON content display
+        self.json_display = QTextEdit()
+        self.json_display.setReadOnly(True)
+        right_layout.addWidget(self.json_display)
+
+        # Add right layout to the main layout
+        main_layout.addLayout(right_layout, 3)  # 30% width
 
         # Keyboard Shortcuts
         self.addAction(self.create_action("Play/Pause", self.toggle_play_pause, "Space"))
@@ -135,7 +140,7 @@ class MainWindow(QMainWindow):
 
         # Set the timer interval based on the framerate
         video_fps = self.video_reader_.get_avg_fps()
-        self.timer_.setInterval(int(1000 / video_fps))
+        self.timer_.setInterval(int((1000 / video_fps)))
 
         # Get the first frame to determine the size
         first_frame = self.video_reader_[0].asnumpy()
@@ -174,10 +179,10 @@ class MainWindow(QMainWindow):
     def toggle_play_pause(self):
         if self.timer_.isActive():
             self.timer_.stop()
-            self.play_pause_action_.setText("Play")
+            self.play_button.setText("Play")
         else:
             self.timer_.start()
-            self.play_pause_action_.setText("Pause")
+            self.play_button.setText("Pause")
 
     def increase_speed(self):
         if self.playback_direction_ == 1:
