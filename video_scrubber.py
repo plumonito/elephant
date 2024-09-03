@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 
@@ -19,8 +20,8 @@ from PySide6.QtWidgets import (
 )
 from decord import VideoReader
 
+from mark_canvas import MarkCanvas
 from sam2_processor import Sam2Processor
-
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -53,13 +54,6 @@ class MainWindow(QMainWindow):
         self.image_label_.setScaledContents(False)  # Set to False to handle scaling manually
         self.image_label_.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        # Set up layout
-        layout = QVBoxLayout()
-        layout.addWidget(self.image_label_)
-        container = QWidget()
-        container.setLayout(layout)
-        self.setCentralWidget(container)
-
         # Toolbar for controls
         self.toolbar_ = QToolBar()
         self.addToolBar(Qt.BottomToolBarArea, self.toolbar_)
@@ -75,7 +69,15 @@ class MainWindow(QMainWindow):
         self.position_slider_.setMaximum(100)
         self.position_slider_.setValue(0)
         self.position_slider_.valueChanged.connect(self.set_position)
-        control_layout.addWidget(self.position_slider_)
+
+        # Set up layout
+        layout = QVBoxLayout()
+        self.mark_canvas_ = MarkCanvas([], self.position_slider_)
+        layout.addWidget(self.image_label_)
+
+        container = QWidget()
+        container.setLayout(layout)
+        self.setCentralWidget(container)
 
         # Buttons Layout (Horizontal layout for buttons)
         button_layout = QHBoxLayout()
@@ -100,7 +102,10 @@ class MainWindow(QMainWindow):
         prev_button.clicked.connect(self.prev_video)
         button_layout.addWidget(prev_button)
 
+        control_layout.addWidget(self.mark_canvas_)
+        control_layout.addWidget(self.position_slider_)
         control_layout.addLayout(button_layout)
+
         self.toolbar_.addWidget(control_widget)
 
         # Keyboard Shortcuts
@@ -137,6 +142,16 @@ class MainWindow(QMainWindow):
 
         self.position_slider_.setMaximum(self.frame_count_ - 1)
         self.display_image_by_index(0)
+
+        # Update canvas marks (this assumes JSON data is in a local file or hardcoded)
+        json_file_path = os.path.join(self.folder_path_, video_file.replace('.mp4', '.json'))
+        try:
+            with open(json_file_path, 'r') as f:
+                json_data = json.load(f)
+                self.mark_canvas_.json_data = json_data
+                self.mark_canvas_.update()  # Trigger a repaint
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Failed to load JSON file: {e}")
 
         self.update_window_title()
 
