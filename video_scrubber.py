@@ -1,114 +1,256 @@
-# Copyright (C) 2022 The Qt Company Ltd.
-# SPDX-License-Identifier: LicenseRef-Qt-Commercial OR BSD-3-Clause
-
-"""PySide6 Multimedia player example"""
-import numpy as np
+import os
 import sys
-from PySide6.QtCore import QStandardPaths, Qt, Slot, QTimer
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QImage, QPixmap, QMouseEvent
+
+import numpy as np
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QImage, QPixmap, QAction
 from PySide6.QtWidgets import (
     QLabel,
     QApplication,
-    QDialog,
-    QFileDialog,
     QMainWindow,
     QSlider,
-    QStyle,
     QToolBar,
+    QVBoxLayout,
+    QPushButton,
+    QMessageBox,
+    QWidget,
+    QHBoxLayout,
+    QSizePolicy,
 )
 from decord import VideoReader
+
 from sam2_processor import Sam2Processor
 
 
 class MainWindow(QMainWindow):
-
     def __init__(self):
         super().__init__()
-        self.sam2_ = Sam2Processor()
+
+        # Initialize variables
+        self.run_with_sam = False
+        if self.run_with_sam:
+            self.sam2_ = Sam2Processor()
+        else:
+            self.sam2_ = None
+        self.video_reader_ = None
+        self.timer_ = QTimer()
+        self.timer_.setInterval(24)  # will be overridden by video loader
+        self.timer_.timeout.connect(self.advance_frame)
+        self.frame_index_ = 0
+        self.playback_speed_ = 1  # Playback speed multiplier
+        self.playback_direction_ = 1  # 1 for forward, -1 for reverse
+        self.folder_path_ = "data"
+        self.current_video_index_ = 0
+        self.frame_count_ = 0
+
+        # Load video files
+        self.video_files_ = [f for f in os.listdir(self.folder_path_) if f.endswith(".mp4")]
+        if not self.video_files_:
+            QMessageBox.critical(self, "Error", "No .mp4 files found in the selected folder.")
+            sys.exit()
 
         self.image_label_ = QLabel()
-        self.image_label_.setScaledContents(True)
-        self.setCentralWidget(self.image_label_)
+        self.image_label_.setScaledContents(False)  # Set to False to handle scaling manually
+        self.image_label_.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        tool_bar = QToolBar()
-        self.addToolBar(tool_bar)
-        self.position_slider_ = QSlider()
-        self.position_slider_.setOrientation(Qt.Horizontal)
+        # Set up layout
+        layout = QVBoxLayout()
+        layout.addWidget(self.image_label_)
+        container = QWidget()
+        container.setLayout(layout)
+        self.setCentralWidget(container)
+
+        # Toolbar for controls
+        self.toolbar_ = QToolBar()
+        self.addToolBar(Qt.BottomToolBarArea, self.toolbar_)
+
+        # Custom widget to hold the two rows
+        control_widget = QWidget()
+        control_layout = QVBoxLayout(control_widget)
+
+        # Scrubber (QSlider)
+        self.position_slider_ = QSlider(Qt.Horizontal)
+        self.position_slider_.setTickPosition(QSlider.TicksBelow)
         self.position_slider_.setMinimum(0)
         self.position_slider_.setMaximum(100)
-        available_width = self.screen().availableGeometry().width()
-        # self.position_slider_.setwidthsetFixedWidth(available_width / 10)
         self.position_slider_.setValue(0)
-        self.position_slider_.setTickInterval(10)
-        self.position_slider_.setTickPosition(QSlider.TicksBelow)
-        self.position_slider_.setToolTip("Position")
         self.position_slider_.valueChanged.connect(self.set_position)
-        tool_bar.addWidget(self.position_slider_)
+        control_layout.addWidget(self.position_slider_)
 
-        self.video_reader_: VideoReader | None = None
-        self.timer_ = QTimer()
-        self.timer_.setInterval(33)
-        self.timer_.timeout.connect(self.advance_frame)
+        # Buttons Layout (Horizontal layout for buttons)
+        button_layout = QHBoxLayout()
 
-        self.open("data/elephant1.mp4")
-        # self.timer_.start()
+        # Play/Pause Button
+        self.play_pause_action_ = QAction("Play", self)
+        self.play_pause_action_.triggered.connect(self.toggle_play_pause)
+        play_button = QPushButton("Play")
+        play_button.clicked.connect(self.toggle_play_pause)
+        button_layout.addWidget(play_button)
 
-    def open(self, filename: str):
-        self.video_reader_ = VideoReader(filename)
+        # Next/Previous Video Buttons
+        self.next_video_action_ = QAction("Next Video", self)
+        self.next_video_action_.triggered.connect(self.next_video)
+        next_button = QPushButton("Next Video")
+        next_button.clicked.connect(self.next_video)
+        button_layout.addWidget(next_button)
+
+        self.prev_video_action_ = QAction("Previous Video", self)
+        self.prev_video_action_.triggered.connect(self.prev_video)
+        prev_button = QPushButton("Previous Video")
+        prev_button.clicked.connect(self.prev_video)
+        button_layout.addWidget(prev_button)
+
+        control_layout.addLayout(button_layout)
+        self.toolbar_.addWidget(control_widget)
+
+        # Keyboard Shortcuts
+        self.addAction(self.create_action("Play/Pause", self.toggle_play_pause, "Space"))
+        self.addAction(self.create_action("Increase Speed", self.increase_speed, "L"))
+        self.addAction(self.create_action("Play Reverse", self.play_reverse, "J"))
+        self.addAction(self.create_action("Play Normal Speed", self.play_normal_speed, "K"))
+
+        # Load the first video
+        self.load_video(self.current_video_index_)
+
+    def create_action(self, name, func, shortcut):
+        action = QAction(name, self)
+        action.triggered.connect(func)
+        action.setShortcut(shortcut)
+        return action
+
+    def load_video(self, index: int):
+        video_file = self.video_files_[index]
+        video_path = os.path.join(self.folder_path_, video_file)
+
+        # Use decord for video reading
+        self.video_reader_ = VideoReader(video_path)
         self.frame_count_ = len(self.video_reader_)
+
+        # Set the timer interval based on the framerate
+        video_fps = self.video_reader_.get_avg_fps()
+        self.timer_.setInterval(int(1000 / video_fps))
+
+        # Get the first frame to determine the size
+        first_frame = self.video_reader_[0].asnumpy()
+        self.original_width = first_frame.shape[1]
+        self.original_height = first_frame.shape[0]
+
+        self.position_slider_.setMaximum(self.frame_count_ - 1)
         self.display_image_by_index(0)
 
-    def advance_frame(self) -> None:
-        self.display_image_by_index(self.frame_index_ + 1)
+        self.update_window_title()
+
+    def next_video(self):
+        self.current_video_index_ += 1
+        if self.current_video_index_ >= len(self.video_files_):
+            self.current_video_index_ = 0
+        self.load_video(self.current_video_index_)
+
+    def prev_video(self):
+        self.current_video_index_ -= 1
+        if self.current_video_index_ < 0:
+            self.current_video_index_ = len(self.video_files_) - 1
+        self.load_video(self.current_video_index_)
+
+    def update_window_title(self):
+        self.setWindowTitle(f"Video {self.current_video_index_ + 1} out of {len(self.video_files_)}")
+
+    def toggle_play_pause(self):
+        if self.timer_.isActive():
+            self.timer_.stop()
+            self.play_pause_action_.setText("Play")
+        else:
+            self.timer_.start()
+            self.play_pause_action_.setText("Pause")
+
+    def increase_speed(self):
+        if self.playback_direction_ == 1:
+            self.playback_speed_ += 4
+        else:
+            self.playback_direction_ = 1
+            self.playback_speed_ = 2
+
+    def play_reverse(self):
+        if self.playback_direction_ == -1:
+            self.playback_speed_ += 4
+        else:
+            self.playback_direction_ = -1
+            self.playback_speed_ = 2
+
+    def play_normal_speed(self):
+        self.playback_speed_ = 2
+        self.playback_direction_ = 1
+
+    def set_position(self, position):
+        if self.video_reader_:
+            self.display_image_by_index(position)
+
+    def advance_frame(self):
+        new_frame_index = self.frame_index_ + (self.playback_speed_ * self.playback_direction_)
+        self.display_image_by_index(new_frame_index)
 
     def display_image_by_index(self, index: int):
-        assert self.video_reader_ is not None
+        if not self.video_reader_:
+            return
+
         if index < 0:
             index = 0
         elif index >= self.frame_count_:
             index = self.frame_count_ - 1
+
         self.frame_index_ = index
         self.display_image(self.video_reader_[self.frame_index_].asnumpy())
+        self.position_slider_.setValue(self.frame_index_)
 
     def display_image(self, image: np.ndarray):
         self.image_ = image
+
+        # Ensure the image is in the correct format (BGR888 or RGB888)
+        if self.image_.ndim != 3 or self.image_.shape[2] not in [3]:
+            raise ValueError("Image must be a HxWx3 array for BGR or RGB format")
+
+        # Convert NumPy array to bytes
+        image_bytes = self.image_.tobytes()
+
+        # Determine the format of the image
+        format = QImage.Format_BGR888 if self.image_.shape[2] == 3 else QImage.Format_RGB888
+
+        # Create QImage from the byte array
         self.qimage_ = QImage(
-            self.image_.tobytes(),
-            self.image_.shape[1],
-            self.image_.shape[0],
-            self.image_.strides[0],
-            QImage.Format.Format_BGR888,
+            image_bytes,
+            self.image_.shape[1],  # width
+            self.image_.shape[0],  # height
+            self.image_.strides[0],  # bytes per line
+            format
         )
-        self.image_label_.setPixmap(QPixmap.fromImage(self.qimage_))
-        self.image_label_.setMinimumSize(1, 1)
-        self.image_label_.mousePressEvent = self.image_clicked
 
-    def set_position(self, position):
-        if not self.video_reader_:
-            return
-        index = int(len(self.video_reader_) * position / 100)
-        self.display_image_by_index(index)
+        # Create a QPixmap from the QImage
+        pixmap = QPixmap.fromImage(self.qimage_)
 
-    def image_clicked(self, ev: QMouseEvent):
-        if ev.button() == Qt.MouseButton.LeftButton:
-            localPos = np.array(ev.position().toTuple())
-            labelSize = np.array(self.image_label_.size().toTuple())
-            relPos = localPos / labelSize
-            relPos[0], relPos[1] = relPos[1], relPos[0]
-            pixelPos = relPos * self.image_.shape[0:2]
-            pixelPos[0], pixelPos[1] = pixelPos[1], pixelPos[0]
-            pixelPos = pixelPos.reshape(1, 2)
-            self.do_segment(pixelPos)
+        # Get the size of the QLabel
+        canvas_width = self.image_label_.width()
+        canvas_height = self.image_label_.height()
 
-    def do_segment(self, pixelPos: np.ndarray) -> None:
-        mask = self.sam2_.process_click(self.image_, pixelPos)
-        mask = mask.astype(np.uint8)
-        masked_image = self.image_ * mask[:, :, np.newaxis]
-        # color = np.array([30, 144, 255], dtype=np.uint8)
-        # mask = mask.astype(np.uint8)
-        # masked_image = mask[:, :, np.newaxis] * color.reshape(1, 1, -1)
-        # masked_image = np.full(masked_image.shape, 0, dtype=np.uint8)
-        self.display_image(masked_image)
+        # Calculate the scaling factor
+        scale_factor = min(
+            canvas_width / self.original_width,
+            canvas_height / self.original_height
+        )
+
+        # Calculate new dimensions
+        new_width = max(1, int(self.original_width * scale_factor))
+        new_height = max(1, int(self.original_height * scale_factor))
+
+        # Scale the pixmap to fit the QLabel
+        pixmap = pixmap.scaled(new_width, new_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+        # Set the scaled pixmap to QLabel
+        self.image_label_.setPixmap(pixmap)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # Redisplay the image when the window is resized
+        self.display_image_by_index(self.frame_index_)
 
 
 if __name__ == "__main__":
