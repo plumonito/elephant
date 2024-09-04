@@ -1,9 +1,8 @@
-from PySide6.QtCore import QSize
+from PySide6.QtCore import QPointF
 import numpy as np
 from PySide6.QtGui import QImage, QPixmap, QResizeEvent
 from PySide6.QtWidgets import (
     QLabel,
-    QSizePolicy,
 )
 
 
@@ -60,3 +59,19 @@ class ImageLabel(QLabel):
             hmargin = 0
             vmargin = (height - width / self.aspect_) / 2
         self.setContentsMargins(hmargin, vmargin, hmargin, vmargin)
+
+    def event_to_image_position(self, event_position: QPointF) -> np.ndarray:
+        margins = self.contentsMargins()
+        localPos = np.array(event_position.toTuple()) - np.array(
+            [margins.left(), margins.top()]
+        )
+        labelSize = np.array(self.size().toTuple()) - np.array(
+            [margins.left() + margins.right(), margins.top() + margins.bottom()]
+        )
+
+        relPos = localPos / labelSize
+        relPos[0], relPos[1] = relPos[1], relPos[0]
+        pixelPos = relPos * self.image_.shape[0:2]
+        pixelPos[0], pixelPos[1] = pixelPos[1], pixelPos[0]
+        pixelPos = pixelPos.reshape(1, 2)
+        return pixelPos

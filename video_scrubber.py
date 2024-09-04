@@ -34,7 +34,7 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         # Initialize variables
-        self.run_with_sam = False
+        self.run_with_sam = True
         if self.run_with_sam:
             self.sam2_ = Sam2Processor()
         else:
@@ -244,22 +244,24 @@ class MainWindow(QMainWindow):
 
     def image_clicked(self, ev: QMouseEvent):
         if ev.button() == Qt.MouseButton.LeftButton:
-            localPos = np.array(ev.position().toTuple())
-            labelSize = np.array(self.image_label_.size().toTuple())
-            relPos = localPos / labelSize
-            relPos[0], relPos[1] = relPos[1], relPos[0]
-            pixelPos = relPos * self.image_label_.image_.shape[0:2]
-            pixelPos[0], pixelPos[1] = pixelPos[1], pixelPos[0]
-            pixelPos = pixelPos.reshape(1, 2)
+            pixelPos = self.image_label_.event_to_image_position(ev.position())
 
             if self.run_with_sam:
                 threading.Thread(target=self.do_segment(pixelPos), daemon=True).start()
-            self.show_popup(pixelPos)
+            # self.show_popup(pixelPos)
 
     def do_segment(self, pixelPos: np.ndarray) -> None:
         mask = self.sam2_.process_click(self.image_label_.image_, pixelPos)
         mask = mask.astype(np.uint8)
         masked_image = self.image_label_.image_ * mask[:, :, np.newaxis]
+
+        # This shows the click position
+        # masked_image[:, :] = 0
+        # pixelPos = pixelPos.reshape(-1).astype(np.int32)
+        # masked_image[
+        #     pixelPos[1] - 5 : pixelPos[1] + 5, pixelPos[0] - 5 : pixelPos[0] + 5
+        # ] = 255
+
         self.image_label_.set_image(masked_image)
 
     def show_popup(self, pixelPos):
