@@ -17,11 +17,16 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QWidget,
     QHBoxLayout,
-    QSizePolicy, QDialog, QComboBox, QTextEdit, )
+    QSizePolicy,
+    QDialog,
+    QComboBox,
+    QTextEdit,
+)
 from decord import VideoReader
 
 from mark_canvas import MarkCanvas
 from sam2_processor import Sam2Processor
+from image_label import ImageLabel
 
 
 class MainWindow(QMainWindow):
@@ -46,9 +51,13 @@ class MainWindow(QMainWindow):
         self.frame_count_ = 0
 
         # Load video files
-        self.video_files_ = [f for f in os.listdir(self.folder_path_) if f.endswith(".mp4")]
+        self.video_files_ = [
+            f for f in os.listdir(self.folder_path_) if f.endswith(".mp4")
+        ]
         if not self.video_files_:
-            QMessageBox.critical(self, "Error", "No .mp4 files found in the selected folder.")
+            QMessageBox.critical(
+                self, "Error", "No .mp4 files found in the selected folder."
+            )
             sys.exit()
 
         # Create the central widget
@@ -62,11 +71,9 @@ class MainWindow(QMainWindow):
         left_layout = QVBoxLayout()
 
         # Video display
-        self.image_label_ = QLabel()
-        self.image_label_.setScaledContents(False)  # Set to False to handle scaling manually
-        self.image_label_.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.image_label_ = ImageLabel()
         self.image_label_.mousePressEvent = self.image_clicked
-        left_layout.addWidget(self.image_label_)
+        left_layout.addWidget(self.image_label_, alignment=Qt.AlignmentFlag.AlignLeft)
 
         # Scrubber (QSlider)
         self.position_slider_ = QSlider(Qt.Horizontal)
@@ -75,7 +82,6 @@ class MainWindow(QMainWindow):
         self.position_slider_.setMaximum(100)
         self.position_slider_.setValue(0)
         self.position_slider_.valueChanged.connect(self.set_position)
-
 
         # Buttons Layout (Horizontal layout for buttons)
         button_layout = QHBoxLayout()
@@ -116,10 +122,14 @@ class MainWindow(QMainWindow):
         main_layout.addLayout(right_layout, 3)  # 30% width
 
         # Keyboard Shortcuts
-        self.addAction(self.create_action("Play/Pause", self.toggle_play_pause, "Space"))
+        self.addAction(
+            self.create_action("Play/Pause", self.toggle_play_pause, "Space")
+        )
         self.addAction(self.create_action("Increase Speed", self.increase_speed, "L"))
         self.addAction(self.create_action("Play Reverse", self.play_reverse, "J"))
-        self.addAction(self.create_action("Play Normal Speed", self.play_normal_speed, "K"))
+        self.addAction(
+            self.create_action("Play Normal Speed", self.play_normal_speed, "K")
+        )
 
         # Load the first video
         self.load_video(self.current_video_index_)
@@ -150,9 +160,11 @@ class MainWindow(QMainWindow):
         self.position_slider_.setMaximum(self.frame_count_ - 1)
         self.display_image_by_index(0)
 
-        json_file_path = os.path.join(self.folder_path_, video_file.replace('.mp4', '.json'))
+        json_file_path = os.path.join(
+            self.folder_path_, video_file.replace(".mp4", ".json")
+        )
         try:
-            with open(json_file_path, 'r') as f:
+            with open(json_file_path, "r") as f:
                 json_data = json.load(f)
                 self.mark_canvas_.json_data = json_data
                 self.mark_canvas_.update()  # Trigger a repaint
@@ -174,7 +186,9 @@ class MainWindow(QMainWindow):
         self.load_video(self.current_video_index_)
 
     def update_window_title(self):
-        self.setWindowTitle(f"Video {self.current_video_index_ + 1} out of {len(self.video_files_)}")
+        self.setWindowTitle(
+            f"Video {self.current_video_index_ + 1} out of {len(self.video_files_)}"
+        )
 
     def toggle_play_pause(self):
         if self.timer_.isActive():
@@ -207,7 +221,9 @@ class MainWindow(QMainWindow):
             self.display_image_by_index(position)
 
     def advance_frame(self):
-        new_frame_index = self.frame_index_ + (self.playback_speed_ * self.playback_direction_)
+        new_frame_index = self.frame_index_ + (
+            self.playback_speed_ * self.playback_direction_
+        )
         self.display_image_by_index(new_frame_index)
 
     def display_image_by_index(self, index: int):
@@ -220,58 +236,11 @@ class MainWindow(QMainWindow):
             index = self.frame_count_ - 1
 
         self.frame_index_ = index
-        self.display_image(self.video_reader_[self.frame_index_].asnumpy())
+        self.image_label_.set_image(self.video_reader_[self.frame_index_].asnumpy())
         self.position_slider_.setValue(self.frame_index_)
-
-    def display_image(self, image: np.ndarray):
-        self.image_ = image
-
-        # Ensure the image is in the correct format (BGR888 or RGB888)
-        if self.image_.ndim != 3 or self.image_.shape[2] not in [3]:
-            raise ValueError("Image must be a HxWx3 array for BGR or RGB format")
-
-        # Convert NumPy array to bytes
-        image_bytes = self.image_.tobytes()
-
-        # Determine the format of the image
-        format = QImage.Format_BGR888 if self.image_.shape[2] == 3 else QImage.Format_RGB888
-
-        # Create QImage from the byte array
-        self.qimage_ = QImage(
-            image_bytes,
-            self.image_.shape[1],  # width
-            self.image_.shape[0],  # height
-            self.image_.strides[0],  # bytes per line
-            format
-        )
-
-        # Create a QPixmap from the QImage
-        pixmap = QPixmap.fromImage(self.qimage_)
-
-        # Get the size of the QLabel
-        canvas_width = self.image_label_.width()
-        canvas_height = self.image_label_.height()
-
-        # Calculate the scaling factor
-        scale_factor = min(
-            canvas_width / self.original_width,
-            canvas_height / self.original_height
-        )
-
-        # Calculate new dimensions
-        new_width = max(1, int(self.original_width * scale_factor))
-        new_height = max(1, int(self.original_height * scale_factor))
-
-        # Scale the pixmap to fit the QLabel
-        pixmap = pixmap.scaled(new_width, new_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-
-        # Set the scaled pixmap to QLabel
-        self.image_label_.setPixmap(pixmap)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        # Redisplay the image when the window is resized
-        self.display_image_by_index(self.frame_index_)
 
     def image_clicked(self, ev: QMouseEvent):
         if ev.button() == Qt.MouseButton.LeftButton:
@@ -279,7 +248,7 @@ class MainWindow(QMainWindow):
             labelSize = np.array(self.image_label_.size().toTuple())
             relPos = localPos / labelSize
             relPos[0], relPos[1] = relPos[1], relPos[0]
-            pixelPos = relPos * self.image_.shape[0:2]
+            pixelPos = relPos * self.image_label_.image_.shape[0:2]
             pixelPos[0], pixelPos[1] = pixelPos[1], pixelPos[0]
             pixelPos = pixelPos.reshape(1, 2)
 
@@ -288,10 +257,10 @@ class MainWindow(QMainWindow):
             self.show_popup(pixelPos)
 
     def do_segment(self, pixelPos: np.ndarray) -> None:
-        mask = self.sam2_.process_click(self.image_, pixelPos)
+        mask = self.sam2_.process_click(self.image_label_.image_, pixelPos)
         mask = mask.astype(np.uint8)
-        masked_image = self.image_ * mask[:, :, np.newaxis]
-        self.display_image(masked_image)
+        masked_image = self.image_label_.image_ * mask[:, :, np.newaxis]
+        self.image_label_.set_image(masked_image)
 
     def show_popup(self, pixelPos):
         popup = QDialog(self)
@@ -304,7 +273,9 @@ class MainWindow(QMainWindow):
         popup_layout.addWidget(combobox)
 
         save_button = QPushButton("Save")
-        save_button.clicked.connect(lambda: self.save_click_position(popup, pixelPos, combobox.currentText()))
+        save_button.clicked.connect(
+            lambda: self.save_click_position(popup, pixelPos, combobox.currentText())
+        )
         popup_layout.addWidget(save_button)
 
         popup.setLayout(popup_layout)
@@ -312,10 +283,16 @@ class MainWindow(QMainWindow):
 
     def save_click_position(self, popup, pixelPos, selected_name):
         if selected_name:
-            video_name = os.path.splitext(self.video_files_[self.current_video_index_])[0]
+            video_name = os.path.splitext(self.video_files_[self.current_video_index_])[
+                0
+            ]
             json_file = os.path.join(self.folder_path_, f"{video_name}_points.json")
 
-            data = {"x": int(pixelPos[0][0]), "y": int(pixelPos[0][1]), "name": selected_name}
+            data = {
+                "x": int(pixelPos[0][0]),
+                "y": int(pixelPos[0][1]),
+                "name": selected_name,
+            }
 
             if os.path.exists(json_file):
                 with open(json_file, "r+") as f:
