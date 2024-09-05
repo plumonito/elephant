@@ -22,6 +22,7 @@ from ui_components.image_label import ImageLabel
 from ui_components.mark_canvas import MarkCanvas
 from ui_components.sam2_processor import Sam2Processor
 from ui_components.side_menu import SideMenu
+from ui_components.record import database
 
 
 class MainWindow(QMainWindow):
@@ -29,7 +30,7 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         # Initialize variables
-        self.run_with_sam = False
+        self.run_with_sam = True
         if self.run_with_sam:
             self.sam2_ = Sam2Processor()
         else:
@@ -231,7 +232,7 @@ class MainWindow(QMainWindow):
 
     def advance_frame(self):
         new_frame_index = self.frame_index_ + (
-                self.playback_speed_ * self.playback_direction_
+            self.playback_speed_ * self.playback_direction_
         )
         self.display_image_by_index(new_frame_index)
 
@@ -252,16 +253,22 @@ class MainWindow(QMainWindow):
         super().resizeEvent(event)
 
     def image_clicked(self, ev: QMouseEvent):
-        if ev.button() == Qt.MouseButton.LeftButton:
+        if ev.button() in [Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton]:
             pixelPos = self.image_label_.event_to_image_position(ev.position())
 
-            self.side_menu.add_record(pixelPos, self.frame_index_)
+            database.add_point(
+                self.frame_index_,
+                self.side_menu.get_selected_name(),
+                pixelPos,
+                is_positive=ev.button() == Qt.MouseButton.LeftButton,
+            )
+            self.side_menu.on_database_changed()
 
             if self.run_with_sam:
                 threading.Thread(target=self.do_segment(pixelPos), daemon=True).start()
 
     def do_segment(self, pixelPos: np.ndarray) -> None:
-        print('Segmenting started')
+        print("Segmenting started")
         mask = self.sam2_.process_click(self.image_label_.image_, pixelPos)
         mask = mask.astype(np.uint8)
         masked_image = self.image_label_.image_ * mask[:, :, np.newaxis]
