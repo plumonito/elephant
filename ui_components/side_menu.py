@@ -1,5 +1,5 @@
 import json
-
+from dataclasses import dataclass
 from PySide6.QtWidgets import (
     QVBoxLayout,
     QComboBox,
@@ -11,6 +11,12 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
 )
 
+@dataclass
+class Record:
+    name: str
+    frame: int
+    x: int
+    y: int
 
 class SideMenu(QWidget):
     def __init__(self, slider):
@@ -28,20 +34,28 @@ class SideMenu(QWidget):
         self.layout.addWidget(QLabel("Select Name:"))
         self.layout.addWidget(self.name_dropdown)
 
-        # List widget for points
-        self.point_list = QListWidget()
-        self.points = []  # Store points loaded from the JSON
-        self.layout.addWidget(QLabel("Points List:"))
-        self.layout.addWidget(self.point_list)
+        # Save status indicator
+        self.save_status_label = QLabel("")
+
+        # List widget for records
+        self.record_list = QListWidget()
+        self.records = []  # Store records loaded from the JSON
+        records_label_layout = QHBoxLayout()
+        records_label = QLabel("Records List:")
+        records_label_layout.addWidget(records_label)
+        records_label_layout.addWidget(self.save_status_label)
+        self.layout.addLayout(records_label_layout)
+        self.layout.addWidget(self.record_list)
 
         # Save button at the bottom
-        self.save_button = QPushButton("Save Points")
-        self.save_button.clicked.connect(self.save_points)
+        self.save_button = QPushButton("Save Records")
+        self.save_button.clicked.connect(self.save_records)
         self.layout.addWidget(self.save_button)
 
         self.setLayout(self.layout)
 
-        self.points_saved = False
+        self.records_saved = False  # Initialize save status as False
+        self.update_save_status()  # Update the save status indicator
 
     def load_names(self):
         # Load names from a names.json file
@@ -52,78 +66,100 @@ class SideMenu(QWidget):
         except Exception as e:
             print(f"Failed to load names: {e}")
 
-    def load_points(self, file_name):
+    def load_records(self, file_name):
         self.file_name = file_name
 
-        # Load points from points.json file
+        # Load records from records.json file
         try:
             with open(file_name, "r") as file:
-                self.points = json.load(file)  # Store points
+                records_data = json.load(file)  # Store records
+                self.records = [Record(**record) for record in records_data]
         except Exception as e:
-            self.points = []  # Default to empty list if loading fails
+            self.records = []  # Default to empty list if loading fails
 
-        self.display_points()
-        self.points_saved = True
+        self.display_records()
+        self.records_saved = True
+        self.update_save_status()
 
-    def display_points(self):
-        self.point_list.clear()
+    def display_records(self):
+        self.record_list.clear()
 
-        # Display each point as a list item with a "Display" button
-        for point in self.points:
+        # Display each record as a list item with "Display" and "Delete" buttons
+        for record in self.records:
             # Create a custom widget for each list item
             item_widget = QWidget()
             item_layout = QHBoxLayout()
 
-            # Display the point info (x, y, name)
-            label = QLabel(
-                f"Point: Name: {point['name']} Frame: {point['frame']}"
-            )
+            # Display the record info
+            label = QLabel(f"Name: {record.name} Frame: {record.frame}")
             item_layout.addWidget(label)
 
-            # Add a "Display" button for each point
+            # Add a "Display" button for each record
             display_button = QPushButton("Display")
             display_button.clicked.connect(
-                lambda _, p=point: self.display_point_details(p)
+                lambda _, r=record: self.display_record_details(r)
             )
             item_layout.addWidget(display_button)
+
+            # Add a "Delete" button for each record
+            delete_button = QPushButton("Delete")
+            delete_button.clicked.connect(
+                lambda _, r=record: self.delete_record(r)
+            )
+            item_layout.addWidget(delete_button)
 
             # Set the layout to the custom widget
             item_widget.setLayout(item_layout)
 
             # Create a QListWidgetItem
-            list_item = QListWidgetItem(self.point_list)
-            list_item.setSizeHint(
-                item_widget.sizeHint()
-            )  # Set the size hint of the QListWidgetItem
+            list_item = QListWidgetItem(self.record_list)
+            list_item.setSizeHint(item_widget.sizeHint())  # Set the size hint of the QListWidgetItem
 
             # Add the custom widget to the QListWidget
-            self.point_list.addItem(list_item)
-            self.point_list.setItemWidget(list_item, item_widget)
+            self.record_list.addItem(list_item)
+            self.record_list.setItemWidget(list_item, item_widget)
 
-    def display_point_details(self, point):
-        print(point)
-        self.slider.setValue(point['frame'])
+    def display_record_details(self, record):
+        print(record)
+        self.slider.setValue(record.frame)
+
+    def delete_record(self, record):
+        # Remove the record from the list and refresh the UI
+        self.records = [r for r in self.records if r != record]
+        self.display_records()
+        self.records_saved = False
+        self.update_save_status()
 
     def get_selected_name(self):
         return self.name_dropdown.currentText()
 
-    def add_point(self, pixel_pos, frame_index):
-        data = {
-            "x": int(pixel_pos[0][0]),
-            "y": int(pixel_pos[0][1]),
-            "name": self.get_selected_name(),
-            "frame": frame_index
-        }
-        self.points.append(data)
-        self.display_points()
-        self.points_saved = False
+    def add_record(self, pixel_pos, frame_index):
+        new_record = Record(
+            name=self.get_selected_name(),
+            frame=frame_index,
+            x=int(pixel_pos[0][0]),
+            y=int(pixel_pos[0][1])
+        )
+        self.records.append(new_record)
+        self.display_records()
+        self.records_saved = False
+        self.update_save_status()
 
-    def save_points(self):
+    def save_records(self):
         if self.file_name:
             try:
-                # Write the points to the selected file
+                # Write the records to the selected file
                 with open(self.file_name, 'w') as file:
-                    json.dump(self.points, file, indent=4)
-                self.points_saved = True
+                    json.dump([record.__dict__ for record in self.records], file, indent=4)
+                self.records_saved = True
+                self.update_save_status()
             except Exception as e:
-                print(f"Failed to save points: {e}")
+                print(f"Failed to save records: {e}")
+
+    def update_save_status(self):
+        if self.records_saved:
+            self.save_status_label.setText("All changes saved")
+            self.save_status_label.setStyleSheet("color: green;")
+        else:
+            self.save_status_label.setText("Unsaved Changes")
+            self.save_status_label.setStyleSheet("color: red;")

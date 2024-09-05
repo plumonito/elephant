@@ -162,7 +162,7 @@ class MainWindow(QMainWindow):
             self.folder_path_, video_file.replace(".mp4", "_points.json")
         )
 
-        self.side_menu.load_points(json_file_path_for_points)
+        self.side_menu.load_records(json_file_path_for_points)
 
         try:
             with open(json_file_path_for_movement, "r") as f:
@@ -255,7 +255,7 @@ class MainWindow(QMainWindow):
         if ev.button() == Qt.MouseButton.LeftButton:
             pixelPos = self.image_label_.event_to_image_position(ev.position())
 
-            self.side_menu.add_point(pixelPos, self.frame_index_)
+            self.side_menu.add_record(pixelPos, self.frame_index_)
 
             if self.run_with_sam:
                 threading.Thread(target=self.do_segment(pixelPos), daemon=True).start()
