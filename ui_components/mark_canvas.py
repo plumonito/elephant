@@ -1,6 +1,7 @@
 from PySide6.QtGui import QPainter, QColor, QMouseEvent, Qt, QPen
 from PySide6.QtWidgets import QWidget
 
+
 class MarkCanvas(QWidget):
     def __init__(self, json_data, slider, parent=None):
         super().__init__(parent)

@@ -2,3 +2,4 @@
 *.json
 elephant-env
 __pycache__
+sam2_hiera_l.yaml

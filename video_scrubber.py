@@ -5,28 +5,23 @@ import threading
 
 import numpy as np
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QImage, QPixmap, QAction, QMouseEvent
+from PySide6.QtGui import QAction, QMouseEvent
 from PySide6.QtWidgets import (
-    QLabel,
     QApplication,
     QMainWindow,
     QSlider,
-    QToolBar,
     QVBoxLayout,
     QPushButton,
     QMessageBox,
     QWidget,
     QHBoxLayout,
-    QSizePolicy,
-    QDialog,
-    QComboBox,
-    QTextEdit,
 )
 from decord import VideoReader
 
-from mark_canvas import MarkCanvas
-from sam2_processor import Sam2Processor
-from image_label import ImageLabel
+from ui_components.image_label import ImageLabel
+from ui_components.mark_canvas import MarkCanvas
+from ui_components.sam2_processor import Sam2Processor
+from ui_components.side_menu import SideMenu
 
 
 class MainWindow(QMainWindow):
@@ -34,7 +29,7 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         # Initialize variables
-        self.run_with_sam = True
+        self.run_with_sam = False
         if self.run_with_sam:
             self.sam2_ = Sam2Processor()
         else:
@@ -114,9 +109,8 @@ class MainWindow(QMainWindow):
         right_layout = QVBoxLayout()
 
         # JSON content display
-        self.json_display = QTextEdit()
-        self.json_display.setReadOnly(True)
-        right_layout.addWidget(self.json_display)
+        self.side_menu = SideMenu(self.position_slider_)
+        right_layout.addWidget(self.side_menu)
 
         # Add right layout to the main layout
         main_layout.addLayout(right_layout, 3)  # 30% width
@@ -160,11 +154,18 @@ class MainWindow(QMainWindow):
         self.position_slider_.setMaximum(self.frame_count_ - 1)
         self.display_image_by_index(0)
 
-        json_file_path = os.path.join(
+        json_file_path_for_movement = os.path.join(
             self.folder_path_, video_file.replace(".mp4", ".json")
         )
+
+        json_file_path_for_points = os.path.join(
+            self.folder_path_, video_file.replace(".mp4", "_points.json")
+        )
+
+        self.side_menu.load_points(json_file_path_for_points)
+
         try:
-            with open(json_file_path, "r") as f:
+            with open(json_file_path_for_movement, "r") as f:
                 json_data = json.load(f)
                 self.mark_canvas_.json_data = json_data
                 self.mark_canvas_.update()  # Trigger a repaint
@@ -174,10 +175,18 @@ class MainWindow(QMainWindow):
         self.update_window_title()
 
     def next_video(self):
-        self.current_video_index_ += 1
-        if self.current_video_index_ >= len(self.video_files_):
-            self.current_video_index_ = 0
-        self.load_video(self.current_video_index_)
+        if self.side_menu.points_saved:
+            self.current_video_index_ += 1
+            if self.current_video_index_ >= len(self.video_files_):
+                self.current_video_index_ = 0
+            self.load_video(self.current_video_index_)
+        else:
+            msg_box = QMessageBox()
+            msg_box.setIcon(QMessageBox.Critical)
+            msg_box.setText("Points need to be saved first.")
+            msg_box.setWindowTitle("Error")
+            msg_box.setStandardButtons(QMessageBox.Ok)
+            msg_box.exec()
 
     def prev_video(self):
         self.current_video_index_ -= 1
@@ -222,7 +231,7 @@ class MainWindow(QMainWindow):
 
     def advance_frame(self):
         new_frame_index = self.frame_index_ + (
-            self.playback_speed_ * self.playback_direction_
+                self.playback_speed_ * self.playback_direction_
         )
         self.display_image_by_index(new_frame_index)
 
@@ -246,11 +255,13 @@ class MainWindow(QMainWindow):
         if ev.button() == Qt.MouseButton.LeftButton:
             pixelPos = self.image_label_.event_to_image_position(ev.position())
 
+            self.side_menu.add_point(pixelPos, self.frame_index_)
+
             if self.run_with_sam:
                 threading.Thread(target=self.do_segment(pixelPos), daemon=True).start()
-            # self.show_popup(pixelPos)
 
     def do_segment(self, pixelPos: np.ndarray) -> None:
+        print('Segmenting started')
         mask = self.sam2_.process_click(self.image_label_.image_, pixelPos)
         mask = mask.astype(np.uint8)
         masked_image = self.image_label_.image_ * mask[:, :, np.newaxis]
@@ -263,50 +274,6 @@ class MainWindow(QMainWindow):
         # ] = 255
 
         self.image_label_.set_image(masked_image)
-
-    def show_popup(self, pixelPos):
-        popup = QDialog(self)
-        popup.setWindowTitle("Select Name")
-        popup_layout = QVBoxLayout()
-
-        names = ["Name1", "Name2", "Name3", "sam2"]
-        combobox = QComboBox()
-        combobox.addItems(names)
-        popup_layout.addWidget(combobox)
-
-        save_button = QPushButton("Save")
-        save_button.clicked.connect(
-            lambda: self.save_click_position(popup, pixelPos, combobox.currentText())
-        )
-        popup_layout.addWidget(save_button)
-
-        popup.setLayout(popup_layout)
-        popup.exec()
-
-    def save_click_position(self, popup, pixelPos, selected_name):
-        if selected_name:
-            video_name = os.path.splitext(self.video_files_[self.current_video_index_])[
-                0
-            ]
-            json_file = os.path.join(self.folder_path_, f"{video_name}_points.json")
-
-            data = {
-                "x": int(pixelPos[0][0]),
-                "y": int(pixelPos[0][1]),
-                "name": selected_name,
-            }
-
-            if os.path.exists(json_file):
-                with open(json_file, "r+") as f:
-                    points = json.load(f)
-                    points.append(data)
-                    f.seek(0)
-                    json.dump(points, f, indent=4)
-            else:
-                with open(json_file, "w") as f:
-                    json.dump([data], f, indent=4)
-
-        popup.accept()
 
 
 if __name__ == "__main__":
