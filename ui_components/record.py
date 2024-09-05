@@ -4,8 +4,8 @@ import numpy as np
 
 @dataclass
 class Record:
-    name: str
     frame: int
+    name: str
     positive_points: np.ndarray  # [point, coords]
     negative_points: np.ndarray  # [point, coords]
 
@@ -14,7 +14,9 @@ class Record:
 
 @dataclass
 class DatabaseFrame:
+    frame: int
     records: dict[str, Record]
+    original_image: np.ndarray  # [H,W,3]
     segmented_image: np.ndarray | None  # [H,W,3]
 
 
@@ -23,20 +25,30 @@ class Database:
     frames: dict[int, DatabaseFrame]
 
     def add_point(
-        self, frame: int, name: str, point: np.ndarray, is_positive: bool
+        self,
+        frame: int,
+        name: str,
+        point: np.ndarray,
+        is_positive: bool,
+        original_image: np.ndarray,
     ) -> None:
         assert point.shape == (1, 2)
 
         frame_data = self.frames.get(frame)
         if frame_data is None:
-            frame_data = DatabaseFrame(records={}, segmented_image=None)
+            frame_data = DatabaseFrame(
+                frame=frame,
+                records={},
+                original_image=original_image,
+                segmented_image=None,
+            )
             self.frames[frame] = frame_data
 
         record = frame_data.records.get(name)
         if record is None:
             record = Record(
-                name=name,
                 frame=frame,
+                name=name,
                 positive_points=np.ndarray((0, 2)),
                 negative_points=np.ndarray((0, 2)),
                 segmentation=None,
@@ -58,12 +70,14 @@ class Database:
                 record.negative_points = other_points
             else:
                 record.positive_points = other_points
-            return
-
-        if is_positive:
-            record.positive_points = np.concatenate([record.positive_points, point])
         else:
-            record.negative_points = np.concatenate([record.negative_points, point])
+            # Add new point
+            if is_positive:
+                record.positive_points = np.concatenate([record.positive_points, point])
+            else:
+                record.negative_points = np.concatenate([record.negative_points, point])
+        # Mask needs recalculating
+        record.segmentation = None
 
 
 database = Database(frames={})

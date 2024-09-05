@@ -20,9 +20,8 @@ from decord import VideoReader
 
 from ui_components.image_label import ImageLabel
 from ui_components.mark_canvas import MarkCanvas
-from ui_components.sam2_processor import Sam2Processor
 from ui_components.side_menu import SideMenu
-from ui_components.record import database
+from ui_components.record import database, DatabaseFrame, Record
 
 
 class MainWindow(QMainWindow):
@@ -30,11 +29,6 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         # Initialize variables
-        self.run_with_sam = True
-        if self.run_with_sam:
-            self.sam2_ = Sam2Processor()
-        else:
-            self.sam2_ = None
         self.video_reader_ = None
         self.timer_ = QTimer()
         self.timer_.setInterval(24)  # will be overridden by video loader
@@ -246,7 +240,8 @@ class MainWindow(QMainWindow):
             index = self.frame_count_ - 1
 
         self.frame_index_ = index
-        self.image_label_.set_image(self.video_reader_[self.frame_index_].asnumpy())
+        self.image_ = self.video_reader_[self.frame_index_].asnumpy()
+        self.image_label_.set_image(self.image_)
         self.position_slider_.setValue(self.frame_index_)
 
     def resizeEvent(self, event):
@@ -254,6 +249,9 @@ class MainWindow(QMainWindow):
 
     def image_clicked(self, ev: QMouseEvent):
         if ev.button() in [Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton]:
+            if self.timer_.isActive():
+                self.toggle_play_pause()
+
             pixelPos = self.image_label_.event_to_image_position(ev.position())
 
             database.add_point(
@@ -261,32 +259,13 @@ class MainWindow(QMainWindow):
                 self.side_menu.get_selected_name(),
                 pixelPos,
                 is_positive=ev.button() == Qt.MouseButton.LeftButton,
+                original_image=self.image_,
             )
             self.side_menu.on_database_changed()
 
-            if self.run_with_sam:
-                threading.Thread(target=self.do_segment(pixelPos), daemon=True).start()
-
-    def do_segment(self, pixelPos: np.ndarray) -> None:
-        print("Segmenting started")
-        mask = self.sam2_.process_click(self.image_label_.image_, pixelPos)
-        mask = mask.astype(np.uint8)
-        masked_image = self.image_label_.image_ * mask[:, :, np.newaxis]
-
-        # This shows the click position
-        # masked_image[:, :] = 0
-        # pixelPos = pixelPos.reshape(-1).astype(np.int32)
-        # masked_image[
-        #     pixelPos[1] - 5 : pixelPos[1] + 5, pixelPos[0] - 5 : pixelPos[0] + 5
-        # ] = 255
-
-        self.image_label_.set_image(masked_image)
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    main_win = MainWindow()
-    available_geometry = main_win.screen().availableGeometry()
-    main_win.resize(available_geometry.width() / 3, available_geometry.height() / 2)
-    main_win.show()
-    sys.exit(app.exec())
+    def update_ui(self, frame: DatabaseFrame) -> None:
+        if self.frame_index_ == frame.frame:
+            if frame.segmented_image is not None:
+                self.image_label_.set_image(frame.segmented_image)
+            else:
+                self.image_label_.set_image(frame.original_image)

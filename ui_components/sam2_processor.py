@@ -33,9 +33,14 @@ class Sam2Processor:
         sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=self.device_)
         self.predictor_ = SAM2ImagePredictor(sam2_model)
 
-    def process_click(self, image: np.ndarray, point_coords: np.ndarray) -> np.ndarray:
+    def process_click(
+        self, image: np.ndarray, positive: np.ndarray, negative: np.ndarray
+    ) -> np.ndarray:
         self.predictor_.set_image(image)
-        point_labels = np.array([1])
+
+        point_coords = np.concatenate([positive, negative])
+        point_labels = np.zeros((positive.shape[0] + negative.shape[0]))
+        point_labels[0 : positive.shape[0]] = 1
 
         masks, scores, logits = self.predictor_.predict(
             point_coords,

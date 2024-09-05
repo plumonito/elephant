@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QListWidgetItem,
 )
-from ui_components.record import database
+from ui_components.record import database, DatabaseFrame, Record
 
 
 class SideMenu(QWidget):
@@ -120,9 +120,15 @@ class SideMenu(QWidget):
         print(record)
         self.slider.setValue(record.frame)
 
-    def delete_record(self, record):
+    def delete_record(self, record: Record) -> None:
         # Remove the record from the list and refresh the UI
-        self.records = [r for r in self.records if r != record]
+        frame_data = database.frames[record.frame]
+        frame_data.records.pop(record.name)
+        frame_data.segmented_image = None
+
+        if len(frame_data.records):
+            database.frames.pop(record.frame)
+
         self.display_records()
         self.records_saved = False
         self.update_save_status()
