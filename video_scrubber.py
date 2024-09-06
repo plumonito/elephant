@@ -1,13 +1,15 @@
 import json
 import os
 import sys
-import threading
+import time
+import math
 
+# from decord import VideoReader
+import cv2
 import numpy as np
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QMouseEvent
 from PySide6.QtWidgets import (
-    QApplication,
     QMainWindow,
     QSlider,
     QVBoxLayout,
@@ -16,12 +18,11 @@ from PySide6.QtWidgets import (
     QWidget,
     QHBoxLayout,
 )
-from decord import VideoReader
 
 from ui_components.image_label import ImageLabel
 from ui_components.mark_canvas import MarkCanvas
+from ui_components.record import database, DatabaseFrame
 from ui_components.side_menu import SideMenu
-from ui_components.record import database, DatabaseFrame, Record
 
 
 class MainWindow(QMainWindow):
@@ -30,12 +31,14 @@ class MainWindow(QMainWindow):
 
         # Initialize variables
         self.video_reader_ = None
+        self.video_fps_ = 1
+        self.last_advance_time_ms = 0
+        self.image_: np.array | None = None
         self.timer_ = QTimer()
-        self.timer_.setInterval(24)  # will be overridden by video loader
+        self.timer_.setInterval(1000 / 24)  # will be overridden by video loader
         self.timer_.timeout.connect(self.advance_frame)
         self.frame_index_ = 0
         self.playback_speed_ = 1  # Playback speed multiplier
-        self.playback_direction_ = 1  # 1 for forward, -1 for reverse
         self.folder_path_ = "data"
         self.current_video_index_ = 0
         self.frame_count_ = 0
@@ -134,17 +137,18 @@ class MainWindow(QMainWindow):
         video_path = os.path.join(self.folder_path_, video_file)
 
         # Use decord for video reading
-        self.video_reader_ = VideoReader(video_path)
-        self.frame_count_ = len(self.video_reader_)
+        self.video_reader_ = cv2.VideoCapture(video_path)
+        self.frame_count_ = int(self.video_reader_.get(cv2.CAP_PROP_FRAME_COUNT))
 
         # Set the timer interval based on the framerate
-        video_fps = self.video_reader_.get_avg_fps()
-        self.timer_.setInterval(int((1000 / video_fps)))
+        self.video_fps_ = self.video_reader_.get(cv2.CAP_PROP_FPS)
+        self.timer_.setInterval(1000 / self.video_fps_)
+        print(f"FPS: {self.video_fps_}")
 
         # Get the first frame to determine the size
-        first_frame = self.video_reader_[0].asnumpy()
-        self.original_width = first_frame.shape[1]
-        self.original_height = first_frame.shape[0]
+        self.original_width = self.video_reader_.get(cv2.CAP_PROP_FRAME_WIDTH)
+        self.original_height = self.video_reader_.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        print(f"Image size: {(self.original_width,self.original_height)}")
 
         self.position_slider_.setMaximum(self.frame_count_ - 1)
         self.display_image_by_index(0)
@@ -195,6 +199,8 @@ class MainWindow(QMainWindow):
         )
 
     def toggle_play_pause(self):
+        self.playback_speed_ = math.copysign(1, self.playback_speed_)  # Keep sign
+
         if self.timer_.isActive():
             self.timer_.stop()
             self.play_button.setText("Play")
@@ -203,31 +209,35 @@ class MainWindow(QMainWindow):
             self.play_button.setText("Pause")
 
     def increase_speed(self):
-        if self.playback_direction_ == 1:
-            self.playback_speed_ += 4
+        if self.playback_speed_ > 0:
+            self.playback_speed_ += 1
         else:
-            self.playback_direction_ = 1
-            self.playback_speed_ = 2
+            self.play_normal_speed()
 
     def play_reverse(self):
-        if self.playback_direction_ == -1:
-            self.playback_speed_ += 4
+        if self.playback_speed_ < 0:
+            self.playback_speed_ -= 1
         else:
-            self.playback_direction_ = -1
-            self.playback_speed_ = 2
+            self.play_normal_speed()
+            self.playback_speed_ *= -1
 
     def play_normal_speed(self):
-        self.playback_speed_ = 2
-        self.playback_direction_ = 1
+        self.playback_speed_ = 1
 
     def set_position(self, position):
         if self.video_reader_:
             self.display_image_by_index(position)
 
     def advance_frame(self):
-        new_frame_index = self.frame_index_ + (
-            self.playback_speed_ * self.playback_direction_
+        now_ms = time.time() * 1000
+        duration_ms = (
+            now_ms - self.last_advance_time_ms if self.last_advance_time_ms > 0 else 0
         )
+        self.last_advance_time_ms = now_ms
+
+        time_factor = self.video_fps_ / (1000 / duration_ms)
+
+        new_frame_index = self.frame_index_ + self.playback_speed_ * time_factor
         self.display_image_by_index(new_frame_index)
 
     def display_image_by_index(self, index: int):
@@ -240,7 +250,23 @@ class MainWindow(QMainWindow):
             index = self.frame_count_ - 1
 
         self.frame_index_ = index
-        self.image_ = self.video_reader_[self.frame_index_].asnumpy()
+        db_frame = database.frames.get(self.frame_index_)
+        if db_frame is not None:
+            # Display image from the database
+            self.image_ = (
+                db_frame.segmented_image
+                if db_frame.segmented_image is not None
+                else db_frame.original_image
+            )
+        else:
+            # Nothing in db, just display raw from video
+            # self.image_ = self.video_reader_[self.frame_index_].asnumpy()
+            self.video_reader_.set(cv2.CAP_PROP_POS_FRAMES, self.frame_index_)
+            ret, cv_frame = self.video_reader_.read()
+            if not ret:
+                return
+            self.image_ = cv_frame
+        assert self.image_ is not None
         self.image_label_.set_image(self.image_)
         self.position_slider_.setValue(self.frame_index_)
 

@@ -13,6 +13,8 @@ class Sam2Processor:
         else:
             self.device_ = torch.device("cpu")
 
+        print(f"Sam2 device: {self.device_.type}")
+
         if self.device_.type == "cuda":
             # use bfloat16 for the entire notebook
             torch.autocast("cuda", dtype=torch.bfloat16).__enter__()
@@ -42,13 +44,12 @@ class Sam2Processor:
         point_labels = np.zeros((positive.shape[0] + negative.shape[0]))
         point_labels[0 : positive.shape[0]] = 1
 
-        masks, scores, logits = self.predictor_.predict(
-            point_coords,
-            point_labels,
-            multimask_output=True,
-        )
-        sorted_ind = np.argsort(scores)[::-1]
-        masks = masks[sorted_ind]
-        scores = scores[sorted_ind]
-        logits = logits[sorted_ind]
-        return masks[0]
+        # masks, scores, _ = self.predictor_.predict(
+        #     point_coords,
+        #     point_labels,
+        #     multimask_output=True,
+        # )
+        # sorted_ind = np.argsort(scores)[::-1]
+        # masks = masks[sorted_ind]
+        # return masks[0]
+        return np.zeros((image.shape[0], image.shape[1]))

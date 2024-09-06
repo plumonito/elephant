@@ -1,8 +1,8 @@
 import time
+
 import numpy as np
 
 from ui_components.record import database, DatabaseFrame, Record
-from threading import Thread
 from ui_components.sam2_processor import Sam2Processor
 from video_scrubber import MainWindow
 
