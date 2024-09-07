@@ -9,7 +9,11 @@ from PySide6.QtWidgets import (
     QPushButton,
     QListWidgetItem,
 )
-from ui_components.record import database, DatabaseFrame, Record
+import PySide6.QtWidgets as QtWidgets
+import PySide6.QtGui as QtGui
+import PySide6.QtCore as QtCore
+from database import active_db, DatabaseFrame, Record
+from serialization import serialize_database
 
 
 class SideMenu(QWidget):
@@ -33,6 +37,10 @@ class SideMenu(QWidget):
 
         # List widget for records
         self.record_list = QListWidget()
+        self.record_list.setSelectionMode(
+            QtWidgets.QAbstractItemView.SelectionMode.SingleSelection
+        )
+        self.record_list.itemClicked.connect(self.display_item)
         records_label_layout = QHBoxLayout()
         records_label = QLabel("Records List:")
         records_label_layout.addWidget(records_label)
@@ -42,12 +50,11 @@ class SideMenu(QWidget):
 
         # Save button at the bottom
         self.save_button = QPushButton("Save Records")
-        self.save_button.clicked.connect(self.save_records)
+        self.save_button.clicked.connect(serialize_database)
         self.layout.addWidget(self.save_button)
 
         self.setLayout(self.layout)
 
-        self.records_saved = False  # Initialize save status as False
         self.update_save_status()  # Update the save status indicator
 
     def load_names(self):
@@ -79,10 +86,12 @@ class SideMenu(QWidget):
         self.record_list.clear()
 
         # Display each record as a list item with "Display" and "Delete" buttons
-        for frame in database.frames.values():
+        for frame in active_db().frames.values():
             for record in frame.records.values():
                 # Create a custom widget for each list item
                 item_widget = QWidget()
+                item_widget.record = record  # type: ignore
+
                 item_layout = QHBoxLayout()
 
                 # Display the record info
@@ -90,13 +99,6 @@ class SideMenu(QWidget):
                     f"{record.name} at {record.frame} +{record.positive_points.shape[0]} -{record.negative_points.shape[0]}"
                 )
                 item_layout.addWidget(label)
-
-                # Add a "Display" button for each record
-                display_button = QPushButton("Display")
-                display_button.clicked.connect(
-                    lambda _, r=record: self.display_record_details(r)
-                )
-                item_layout.addWidget(display_button)
 
                 # Add a "Delete" button for each record
                 delete_button = QPushButton("Delete")
@@ -108,29 +110,29 @@ class SideMenu(QWidget):
 
                 # Create a QListWidgetItem
                 list_item = QListWidgetItem(self.record_list)
-                list_item.setSizeHint(
-                    item_widget.sizeHint()
-                )  # Set the size hint of the QListWidgetItem
+                list_item.setSizeHint(item_widget.sizeHint())
 
                 # Add the custom widget to the QListWidget
                 self.record_list.addItem(list_item)
                 self.record_list.setItemWidget(list_item, item_widget)
 
-    def display_record_details(self, record):
+    def display_item(self, list_item: QListWidgetItem) -> None:
+        record = self.record_list.itemWidget(list_item).record  # type: ignore
         print(record)
         self.slider.setValue(record.frame)
 
     def delete_record(self, record: Record) -> None:
         # Remove the record from the list and refresh the UI
-        frame_data = database.frames[record.frame]
+        frame_data = active_db().frames[record.frame]
         frame_data.records.pop(record.name)
         frame_data.segmented_image = None
 
         if len(frame_data.records):
-            database.frames.pop(record.frame)
+            active_db().frames.pop(record.frame)
+
+        active_db().is_dirty = True
 
         self.display_records()
-        self.records_saved = False
         self.update_save_status()
 
     def get_selected_name(self):
@@ -138,26 +140,12 @@ class SideMenu(QWidget):
 
     def on_database_changed(self) -> None:
         self.display_records()
-        self.records_saved = False
         self.update_save_status()
 
-    def save_records(self):
-        if self.file_name:
-            try:
-                # Write the records to the selected file
-                with open(self.file_name, "w") as file:
-                    json.dump(
-                        [record.__dict__ for record in self.records], file, indent=4
-                    )
-                self.records_saved = True
-                self.update_save_status()
-            except Exception as e:
-                print(f"Failed to save records: {e}")
-
     def update_save_status(self):
-        if self.records_saved:
-            self.save_status_label.setText("All changes saved")
-            self.save_status_label.setStyleSheet("color: green;")
-        else:
+        if active_db().is_dirty:
             self.save_status_label.setText("Unsaved Changes")
             self.save_status_label.setStyleSheet("color: red;")
+        else:
+            self.save_status_label.setText("All changes saved")
+            self.save_status_label.setStyleSheet("color: green;")

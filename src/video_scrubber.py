@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import math
+from pathlib import Path
 
 # from decord import VideoReader
 import cv2
@@ -19,10 +20,11 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
 )
 
-from ui_components.image_label import ImageLabel
-from ui_components.mark_canvas import MarkCanvas
-from ui_components.record import database, DatabaseFrame
-from ui_components.side_menu import SideMenu
+from image_label import ImageLabel
+from mark_canvas import MarkCanvas
+from database import active_db, set_db, Database, DatabaseFrame
+from side_menu import SideMenu
+from serialization import deserialize_database
 
 
 class MainWindow(QMainWindow):
@@ -33,23 +35,21 @@ class MainWindow(QMainWindow):
         self.video_reader_ = None
         self.video_fps_ = 1
         self.last_advance_time_ms = 0
-        self.image_: np.array | None = None
+        self.image_: np.ndarray | None = None
         self.timer_ = QTimer()
-        self.timer_.setInterval(1000 / 24)  # will be overridden by video loader
+        self.timer_.setInterval(int(1000 / 24))  # will be overridden by video loader
         self.timer_.timeout.connect(self.advance_frame)
         self.frame_index_ = 0
         self.playback_speed_ = 1  # Playback speed multiplier
-        self.folder_path_ = "data"
+        self.folder_path_ = Path("data")
         self.current_video_index_ = 0
         self.frame_count_ = 0
 
         # Load video files
-        self.video_files_ = [
-            f for f in os.listdir(self.folder_path_) if f.endswith(".mp4")
-        ]
+        self.video_files_ = list(self.folder_path_.glob("*.mp4"))
         if not self.video_files_:
             QMessageBox.critical(
-                self, "Error", "No .mp4 files found in the selected folder."
+                self, "Error", f"No .mp4 files found in the {str(self.folder_path_)}."
             )
             sys.exit()
 
@@ -69,8 +69,8 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(self.image_label_, alignment=Qt.AlignmentFlag.AlignLeft)
 
         # Scrubber (QSlider)
-        self.position_slider_ = QSlider(Qt.Horizontal)
-        self.position_slider_.setTickPosition(QSlider.TicksBelow)
+        self.position_slider_ = QSlider(Qt.Horizontal)  # type:ignore
+        self.position_slider_.setTickPosition(QSlider.TicksBelow)  # type:ignore
         self.position_slider_.setMinimum(0)
         self.position_slider_.setMaximum(100)
         self.position_slider_.setValue(0)
@@ -133,16 +133,24 @@ class MainWindow(QMainWindow):
         return action
 
     def load_video(self, index: int):
-        video_file = self.video_files_[index]
-        video_path = os.path.join(self.folder_path_, video_file)
+        video_path = self.video_files_[index]
+        print(f"Loading {str(video_path)}")
 
         # Use decord for video reading
-        self.video_reader_ = cv2.VideoCapture(video_path)
+        self.video_reader_ = cv2.VideoCapture(str(video_path))
         self.frame_count_ = int(self.video_reader_.get(cv2.CAP_PROP_FRAME_COUNT))
+
+        # Reset database
+        set_db(
+            deserialize_database(video_path=video_path, video_reader=self.video_reader_)
+        )
 
         # Set the timer interval based on the framerate
         self.video_fps_ = self.video_reader_.get(cv2.CAP_PROP_FPS)
-        self.timer_.setInterval(1000 / self.video_fps_)
+        if self.video_fps_ < 1:
+            self.video_fps_ = 24  # Assume if invalid
+
+        self.timer_.setInterval(int(1000 / self.video_fps_))
         print(f"FPS: {self.video_fps_}")
 
         # Get the first frame to determine the size
@@ -153,39 +161,31 @@ class MainWindow(QMainWindow):
         self.position_slider_.setMaximum(self.frame_count_ - 1)
         self.display_image_by_index(0)
 
-        json_file_path_for_movement = os.path.join(
-            self.folder_path_, video_file.replace(".mp4", ".json")
-        )
+        json_file_path_for_movement = video_path.with_suffix(".json")
 
-        json_file_path_for_points = os.path.join(
-            self.folder_path_, video_file.replace(".mp4", "_points.json")
-        )
-
-        self.side_menu.load_records(json_file_path_for_points)
+        self.side_menu.display_records()
 
         try:
-            with open(json_file_path_for_movement, "r") as f:
+            with json_file_path_for_movement.open("r") as f:
                 json_data = json.load(f)
-                self.mark_canvas_.json_data = json_data
-                self.mark_canvas_.update()  # Trigger a repaint
+            self.mark_canvas_.json_data = json_data
+            self.mark_canvas_.update()  # Trigger a repaint
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Failed to load JSON file: {e}")
 
         self.update_window_title()
 
     def next_video(self):
-        if self.side_menu.points_saved:
-            self.current_video_index_ += 1
-            if self.current_video_index_ >= len(self.video_files_):
-                self.current_video_index_ = 0
-            self.load_video(self.current_video_index_)
-        else:
-            msg_box = QMessageBox()
-            msg_box.setIcon(QMessageBox.Critical)
-            msg_box.setText("Points need to be saved first.")
-            msg_box.setWindowTitle("Error")
-            msg_box.setStandardButtons(QMessageBox.Ok)
-            msg_box.exec()
+        if active_db().is_dirty:
+            QMessageBox.critical(
+                parent=self, title="Error", text="Points need to be saved first."
+            )
+            return
+
+        self.current_video_index_ += 1
+        if self.current_video_index_ >= len(self.video_files_):
+            self.current_video_index_ = 0
+        self.load_video(self.current_video_index_)
 
     def prev_video(self):
         self.current_video_index_ -= 1
@@ -237,7 +237,7 @@ class MainWindow(QMainWindow):
 
         time_factor = self.video_fps_ / (1000 / duration_ms)
 
-        new_frame_index = self.frame_index_ + self.playback_speed_ * time_factor
+        new_frame_index = self.frame_index_ + int(self.playback_speed_ * time_factor)
         self.display_image_by_index(new_frame_index)
 
     def display_image_by_index(self, index: int):
@@ -250,7 +250,7 @@ class MainWindow(QMainWindow):
             index = self.frame_count_ - 1
 
         self.frame_index_ = index
-        db_frame = database.frames.get(self.frame_index_)
+        db_frame = active_db().frames.get(self.frame_index_)
         if db_frame is not None:
             # Display image from the database
             self.image_ = (
@@ -260,7 +260,6 @@ class MainWindow(QMainWindow):
             )
         else:
             # Nothing in db, just display raw from video
-            # self.image_ = self.video_reader_[self.frame_index_].asnumpy()
             self.video_reader_.set(cv2.CAP_PROP_POS_FRAMES, self.frame_index_)
             ret, cv_frame = self.video_reader_.read()
             if not ret:
@@ -275,18 +274,20 @@ class MainWindow(QMainWindow):
 
     def image_clicked(self, ev: QMouseEvent):
         if ev.button() in [Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton]:
+            assert self.image_ is not None
             if self.timer_.isActive():
                 self.toggle_play_pause()
 
             pixelPos = self.image_label_.event_to_image_position(ev.position())
 
-            database.add_point(
+            active_db().add_point(
                 self.frame_index_,
                 self.side_menu.get_selected_name(),
                 pixelPos,
                 is_positive=ev.button() == Qt.MouseButton.LeftButton,
                 original_image=self.image_,
             )
+            active_db().is_dirty = True
             self.side_menu.on_database_changed()
 
     def update_ui(self, frame: DatabaseFrame) -> None:

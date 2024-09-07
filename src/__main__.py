@@ -18,7 +18,7 @@ if __name__ == "__main__":
     segmenter_thread.start()
 
     available_geometry = main_win.screen().availableGeometry()
-    main_win.resize(available_geometry.width() / 3, available_geometry.height() / 2)
+    main_win.resize(available_geometry.width() // 3, available_geometry.height() // 2)
 
     def close_event(*args, **kwargs) -> None:
         segmenter.should_stop = True

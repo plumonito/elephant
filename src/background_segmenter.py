@@ -2,8 +2,8 @@ import time
 
 import numpy as np
 
-from ui_components.record import database, DatabaseFrame, Record
-from ui_components.sam2_processor import Sam2Processor
+from database import active_db, DatabaseFrame, Record
+from sam2_processor import Sam2Processor
 from video_scrubber import MainWindow
 
 COLOR_GREEN = np.array([0, 255, 0], dtype=np.uint8).reshape(1, 1, 3)
@@ -25,7 +25,7 @@ class BackgroundSegmenter:
         while not self.should_stop:
             time.sleep(0.5)
 
-            for frame in database.frames.values():
+            for frame in active_db().frames.values():
                 frame_stale = frame.segmented_image is None
                 for record in frame.records.values():
                     if record.segmentation is None:

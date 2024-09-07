@@ -1,5 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import numpy as np
+from pathlib import Path
 
 
 @dataclass
@@ -9,20 +10,23 @@ class Record:
     positive_points: np.ndarray  # [point, coords]
     negative_points: np.ndarray  # [point, coords]
 
-    segmentation: np.ndarray | None  # [H,W]
+    segmentation: np.ndarray | None = None  # [H,W]
 
 
 @dataclass
 class DatabaseFrame:
     frame: int
-    records: dict[str, Record]
     original_image: np.ndarray  # [H,W,3]
-    segmented_image: np.ndarray | None  # [H,W,3]
+
+    records: dict[str, Record] = field(default_factory=dict)
+    segmented_image: np.ndarray | None = None  # [H,W,3]
 
 
 @dataclass
 class Database:
-    frames: dict[int, DatabaseFrame]
+    video_path: Path
+    frames: dict[int, DatabaseFrame] = field(default_factory=dict)
+    is_dirty: bool = False
 
     def add_point(
         self,
@@ -80,4 +84,14 @@ class Database:
         record.segmentation = None
 
 
-database = Database(frames={})
+_database = Database(video_path=Path())
+
+
+def active_db() -> Database:
+    global _database
+    return _database
+
+
+def set_db(db: Database) -> None:
+    global _database
+    _database = db
