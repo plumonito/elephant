@@ -6,6 +6,9 @@ from ui_components.record import database, DatabaseFrame, Record
 from ui_components.sam2_processor import Sam2Processor
 from video_scrubber import MainWindow
 
+COLOR_GREEN = np.array([0, 255, 0], dtype=np.uint8).reshape(1, 1, 3)
+COLOR_RED = np.array([0, 0, 255], dtype=np.uint8).reshape(1, 1, 3)
+
 
 class BackgroundSegmenter:
     def __init__(self, window: MainWindow) -> None:
@@ -50,8 +53,6 @@ class BackgroundSegmenter:
         record.segmentation = mask
 
     def update_frame_image(self, frame: DatabaseFrame) -> None:
-        color_green = np.array([0, 255, 0], dtype=np.uint8).reshape(1, 1, 3)
-        color_red = np.array([255, 0, 0], dtype=np.uint8).reshape(1, 1, 3)
 
         masked_image = frame.original_image.copy()
         for record in frame.records.values():
@@ -64,12 +65,12 @@ class BackgroundSegmenter:
                 pixelPos = pixelPos.reshape(-1).astype(np.int32)
                 masked_image[
                     pixelPos[1] - 5 : pixelPos[1] + 5, pixelPos[0] - 5 : pixelPos[0] + 5
-                ] = color_green
+                ] = COLOR_GREEN
 
             for pixelPos in record.negative_points:
                 pixelPos = pixelPos.reshape(-1).astype(np.int32)
                 masked_image[
                     pixelPos[1] - 5 : pixelPos[1] + 5, pixelPos[0] - 5 : pixelPos[0] + 5
-                ] = color_red
+                ] = COLOR_RED
 
         frame.segmented_image = masked_image

@@ -49,7 +49,6 @@ class Sam2Processor:
             point_labels,
             multimask_output=True,
         )
-        # sorted_ind = np.argsort(scores)[::-1]
-        # masks = masks[sorted_ind]
-        # return masks[0]
-        return np.zeros((image.shape[0], image.shape[1]))
+        sorted_ind = np.argsort(scores)[::-1]
+        masks = masks[sorted_ind]
+        return masks[0]
