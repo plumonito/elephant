@@ -32,7 +32,7 @@ class ImageLabel(QLabel):
             width,
             height,
             image.strides[0],  # bytes per line
-            QImage.Format_RGB888,
+            QImage.Format_BGR888,
         )
 
         self.aspect_ = width / height

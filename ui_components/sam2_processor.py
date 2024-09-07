@@ -44,11 +44,11 @@ class Sam2Processor:
         point_labels = np.zeros((positive.shape[0] + negative.shape[0]))
         point_labels[0 : positive.shape[0]] = 1
 
-        # masks, scores, _ = self.predictor_.predict(
-        #     point_coords,
-        #     point_labels,
-        #     multimask_output=True,
-        # )
+        masks, scores, _ = self.predictor_.predict(
+            point_coords,
+            point_labels,
+            multimask_output=True,
+        )
         # sorted_ind = np.argsort(scores)[::-1]
         # masks = masks[sorted_ind]
         # return masks[0]
