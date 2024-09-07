@@ -12,15 +12,18 @@ from PySide6.QtWidgets import (
 import PySide6.QtWidgets as QtWidgets
 import PySide6.QtGui as QtGui
 import PySide6.QtCore as QtCore
+from queue import SimpleQueue
+
 from database import active_db, DatabaseFrame, Record
 from serialization import serialize_database
 
 
 class SideMenu(QWidget):
-    def __init__(self, slider):
+    def __init__(self, slider, work_queue: SimpleQueue):
         super().__init__()
 
         self.slider = slider
+        self.work_queue_ = work_queue
 
         # Main Layout
         self.file_name = None
@@ -131,6 +134,8 @@ class SideMenu(QWidget):
             active_db().frames.pop(record.frame)
 
         active_db().is_dirty = True
+        # Request background processing
+        self.work_queue_.put(active_db().frames[record.frame])
 
         self.display_records()
         self.update_save_status()

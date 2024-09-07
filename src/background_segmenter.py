@@ -5,13 +5,14 @@ import numpy as np
 from database import active_db, DatabaseFrame, Record
 from sam2_processor import Sam2Processor
 from video_scrubber import MainWindow
+from queue import SimpleQueue
 
 COLOR_GREEN = np.array([0, 255, 0], dtype=np.uint8).reshape(1, 1, 3)
 COLOR_RED = np.array([0, 0, 255], dtype=np.uint8).reshape(1, 1, 3)
 
 
 class BackgroundSegmenter:
-    def __init__(self, window: MainWindow) -> None:
+    def __init__(self, window: MainWindow, work_queue: SimpleQueue) -> None:
         self.should_stop = False
         self.window = window
 
@@ -21,24 +22,27 @@ class BackgroundSegmenter:
         else:
             self.sam2_ = None
 
+        self.work_queue_ = work_queue
+        # self.ui_queue_ = SimpleQueue()
+
     def run(self) -> None:
         while not self.should_stop:
-            time.sleep(0.5)
+            try:
+                frame: DatabaseFrame = self.work_queue_.get(block=True, timeout=0.5)
+            except:
+                continue
 
-            for frame in active_db().frames.values():
-                frame_stale = frame.segmented_image is None
-                for record in frame.records.values():
-                    if record.segmentation is None:
-                        # Segment!
-                        frame_stale = True
-                        self.segment_record(frame, record)
+            for record in frame.records.values():
+                if record.segmentation is None:
+                    # Segment!
+                    self.segment_record(frame, record)
 
-                if frame_stale:
-                    # Combine segmentations into a single image
-                    self.update_frame_image(frame)
+            # Combine segmentations into a single image
+            self.update_frame_image(frame)
 
-                    # Trigger UI update
-                    self.window.update_ui(frame)
+            # Trigger UI update
+            # self.ui_queue_.put(frame)
+            self.window.update_ui(frame)
 
     def segment_record(self, frame: DatabaseFrame, record: Record) -> None:
         if self.sam2_:

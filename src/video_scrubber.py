@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
     QHBoxLayout,
 )
+from queue import SimpleQueue
 
 from image_label import ImageLabel
 from mark_canvas import MarkCanvas
@@ -28,10 +29,11 @@ from serialization import deserialize_database
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, work_queue: SimpleQueue) -> None:
         super().__init__()
 
         # Initialize variables
+        self.work_queue_ = work_queue
         self.video_reader_ = None
         self.video_fps_ = 1
         self.last_advance_time_ms = 0
@@ -107,7 +109,7 @@ class MainWindow(QMainWindow):
         right_layout = QVBoxLayout()
 
         # JSON content display
-        self.side_menu = SideMenu(self.position_slider_)
+        self.side_menu = SideMenu(self.position_slider_, self.work_queue_)
         right_layout.addWidget(self.side_menu)
 
         # Add right layout to the main layout
@@ -288,6 +290,9 @@ class MainWindow(QMainWindow):
                 original_image=self.image_,
             )
             active_db().is_dirty = True
+
+            # Request background processing
+            self.work_queue_.put(active_db().frames[self.frame_index_])
             self.side_menu.on_database_changed()
 
     def update_ui(self, frame: DatabaseFrame) -> None:

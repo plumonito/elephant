@@ -4,6 +4,7 @@ import threading
 from PySide6.QtWidgets import (
     QApplication,
 )
+from queue import SimpleQueue
 
 from background_segmenter import BackgroundSegmenter
 from video_scrubber import MainWindow
@@ -11,9 +12,10 @@ from video_scrubber import MainWindow
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
-    main_win = MainWindow()
+    work_queue = SimpleQueue()
+    main_win = MainWindow(work_queue)
 
-    segmenter = BackgroundSegmenter(main_win)
+    segmenter = BackgroundSegmenter(main_win, work_queue)
     segmenter_thread = threading.Thread(target=segmenter.run, daemon=False)
     segmenter_thread.start()
 
