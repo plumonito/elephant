@@ -2,6 +2,9 @@ import time
 
 import numpy as np
 
+from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QStatusTipEvent
+
 from database import active_db, DatabaseFrame, Record
 from sam2_processor import Sam2Processor
 from video_scrubber import MainWindow
@@ -32,6 +35,13 @@ class BackgroundSegmenter:
             except:
                 continue
 
+            if QApplication.activeWindow() is not None:
+                QApplication.sendEvent(
+                    QApplication.activeWindow(),
+                    QStatusTipEvent(
+                        f"sam2:Segmenting {self.work_queue_.qsize()+1} frames..."
+                    ),
+                )
             for record in frame.records.values():
                 if record.segmentation is None:
                     # Segment!
@@ -43,6 +53,12 @@ class BackgroundSegmenter:
             # Trigger UI update
             # self.ui_queue_.put(frame)
             self.window.update_ui(frame)
+
+            if QApplication.activeWindow() is not None:
+                if self.work_queue_.empty():
+                    QApplication.sendEvent(
+                        QApplication.activeWindow(), QStatusTipEvent("sam2:Ready")
+                    )
 
     def segment_record(self, frame: DatabaseFrame, record: Record) -> None:
         if self.sam2_:

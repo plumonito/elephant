@@ -1,5 +1,6 @@
 import json
 import os
+import datetime
 import sys
 import time
 import math
@@ -8,9 +9,10 @@ from pathlib import Path
 # from decord import VideoReader
 import cv2
 import numpy as np
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction, QMouseEvent
+from PySide6.QtCore import Qt, QTimer, QEvent
+from PySide6.QtGui import QAction, QMouseEvent, QStatusTipEvent
 from PySide6.QtWidgets import (
+    QApplication,
     QMainWindow,
     QSlider,
     QVBoxLayout,
@@ -18,6 +20,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QWidget,
     QHBoxLayout,
+    QLabel,
 )
 from queue import SimpleQueue
 
@@ -115,6 +118,13 @@ class MainWindow(QMainWindow):
         # Add right layout to the main layout
         main_layout.addLayout(right_layout, 3)  # 30% width
 
+        statusBar = self.statusBar()
+        self.statusLabels_ = {}
+        self.statusLabels_["sam2"] = QLabel("")
+        self.statusLabels_["video_time"] = QLabel("0s")
+        for label in self.statusLabels_.values():
+            statusBar.addPermanentWidget(label)
+
         # Keyboard Shortcuts
         self.addAction(
             self.create_action("Play/Pause", self.toggle_play_pause, "Space")
@@ -134,6 +144,19 @@ class MainWindow(QMainWindow):
         action.setShortcut(shortcut)
         return action
 
+    def event(self, event: QEvent) -> bool:
+        if isinstance(event, QStatusTipEvent):
+            msg = event.tip()
+            parts = msg.split(":")
+            if len(parts) == 2:
+                key = parts[0]
+                assert key in self.statusLabels_
+                self.statusLabels_[key].setText(parts[1])
+            else:
+                self.statusBar().showMessage(msg)
+            return True
+        return super().event(event)
+
     def load_video(self, index: int):
         video_path = self.video_files_[index]
         print(f"Loading {str(video_path)}")
@@ -146,6 +169,10 @@ class MainWindow(QMainWindow):
         set_db(
             deserialize_database(video_path=video_path, video_reader=self.video_reader_)
         )
+
+        # Submit all frames to background segmenter
+        for frame in active_db().frames.values():
+            self.work_queue_.put(frame)
 
         # Set the timer interval based on the framerate
         self.video_fps_ = self.video_reader_.get(cv2.CAP_PROP_FPS)
@@ -233,7 +260,7 @@ class MainWindow(QMainWindow):
     def advance_frame(self):
         now_ms = time.time() * 1000
         duration_ms = (
-            now_ms - self.last_advance_time_ms if self.last_advance_time_ms > 0 else 0
+            now_ms - self.last_advance_time_ms if self.last_advance_time_ms > 1 else 1
         )
         self.last_advance_time_ms = now_ms
 
@@ -270,6 +297,14 @@ class MainWindow(QMainWindow):
         assert self.image_ is not None
         self.image_label_.set_image(self.image_)
         self.position_slider_.setValue(self.frame_index_)
+
+        video_time = datetime.timedelta(seconds=self.frame_index_ / self.video_fps_)
+        QApplication.sendEvent(
+            self,
+            QStatusTipEvent(
+                f"video_time:frame {self.frame_index_} ({video_time.total_seconds():.1f}s)"
+            ),
+        )
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
