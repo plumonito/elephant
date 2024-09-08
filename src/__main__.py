@@ -22,9 +22,9 @@ if __name__ == "__main__":
     available_geometry = main_win.screen().availableGeometry()
     main_win.resize(available_geometry.width() // 3, available_geometry.height() // 2)
 
-    def close_event(*args, **kwargs) -> None:
-        segmenter.should_stop = True
-
-    main_win.closeEvent = close_event
     main_win.show()
-    sys.exit(app.exec())
+    ret_value = app.exec()
+
+    segmenter.should_stop = True
+
+    sys.exit(ret_value)

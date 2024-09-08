@@ -10,6 +10,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from PySide6.QtCore import Qt, QTimer, QEvent
+import PySide6.QtGui as QtGui
 from PySide6.QtGui import QAction, QMouseEvent, QStatusTipEvent
 from PySide6.QtWidgets import (
     QApplication,
@@ -28,7 +29,7 @@ from image_label import ImageLabel
 from mark_canvas import MarkCanvas
 from database import active_db, set_db, Database, DatabaseFrame
 from side_menu import SideMenu
-from serialization import deserialize_database
+from serialization import deserialize_database, serialize_database
 from utils import pretty_time_delta
 
 
@@ -154,6 +155,10 @@ class MainWindow(QMainWindow):
         action.setShortcut(shortcut)
         return action
 
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        if active_db().is_dirty:
+            serialize_database()
+
     def event(self, event: QEvent) -> bool:
         if isinstance(event, QStatusTipEvent):
             msg = event.tip()
@@ -167,7 +172,10 @@ class MainWindow(QMainWindow):
             return True
         return super().event(event)
 
-    def load_video(self, index: int):
+    def load_video(self, index: int) -> None:
+        if active_db().is_dirty:
+            serialize_database()
+
         video_path = self.video_files_[index]
         print(f"Loading {str(video_path)}")
 
@@ -215,12 +223,6 @@ class MainWindow(QMainWindow):
         self.update_window_title()
 
     def next_video(self):
-        if active_db().is_dirty:
-            QMessageBox.critical(
-                parent=self, title="Error", text="Points need to be saved first."
-            )
-            return
-
         self.current_video_index_ += 1
         if self.current_video_index_ >= len(self.video_files_):
             self.current_video_index_ = 0
