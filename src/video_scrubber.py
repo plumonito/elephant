@@ -29,6 +29,7 @@ from mark_canvas import MarkCanvas
 from database import active_db, set_db, Database, DatabaseFrame
 from side_menu import SideMenu
 from serialization import deserialize_database
+from utils import pretty_time_delta
 
 
 class MainWindow(QMainWindow):
@@ -329,7 +330,7 @@ class MainWindow(QMainWindow):
         QApplication.sendEvent(
             self,
             QStatusTipEvent(
-                f"video_time:frame {self.frame_index_} ({video_time.total_seconds():.1f}s)"
+                f"video_time:frame {self.frame_index_} ({pretty_time_delta(video_time.total_seconds())})"
             ),
         )
 
