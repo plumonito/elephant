@@ -137,6 +137,12 @@ class MainWindow(QMainWindow):
         self.addAction(
             self.create_action("Speed ←", self.decrease_speed, Qt.Key.Key_Left)
         )
+        self.addAction(
+            self.create_action("Name ↑", self.side_menu.prev_name, Qt.Key.Key_Up)
+        )
+        self.addAction(
+            self.create_action("Name ↓", self.side_menu.next_name, Qt.Key.Key_Down)
+        )
 
         # Load the first video
         self.load_video(self.current_video_index_)

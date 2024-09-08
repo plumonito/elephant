@@ -1,4 +1,6 @@
 import json
+from pathlib import Path
+
 from PySide6.QtWidgets import (
     QVBoxLayout,
     QComboBox,
@@ -27,13 +29,13 @@ class SideMenu(QWidget):
 
         # Main Layout
         self.file_name = None
-        self.layout = QVBoxLayout()
+        layout = QVBoxLayout()
 
         # Dropdown for names
         self.name_dropdown = QComboBox()
         self.load_names()  # Load names from the JSON file
-        self.layout.addWidget(QLabel("Select Name:"))
-        self.layout.addWidget(self.name_dropdown)
+        layout.addWidget(QLabel("Select Name:"))
+        layout.addWidget(self.name_dropdown)
 
         # Save status indicator
         self.save_status_label = QLabel("")
@@ -48,42 +50,37 @@ class SideMenu(QWidget):
         records_label = QLabel("Records List:")
         records_label_layout.addWidget(records_label)
         records_label_layout.addWidget(self.save_status_label)
-        self.layout.addLayout(records_label_layout)
-        self.layout.addWidget(self.record_list)
+        layout.addLayout(records_label_layout)
+        layout.addWidget(self.record_list)
 
         # Save button at the bottom
         self.save_button = QPushButton("Save Records")
         self.save_button.clicked.connect(serialize_database)
-        self.layout.addWidget(self.save_button)
+        layout.addWidget(self.save_button)
 
-        self.setLayout(self.layout)
+        self.setLayout(layout)
 
         self.update_save_status()  # Update the save status indicator
 
     def load_names(self):
         # Load names from a names.json file
+        path = Path("names.json")
         try:
-            with open("names.json", "r") as file:
+            with path.open("r") as file:
                 names = json.load(file)
-                self.name_dropdown.addItems(names)
+            self.name_dropdown.addItems(names)
         except Exception as e:
-            print(f"Failed to load names: {e}")
+            print(f"Failed to load names from {str(path)}: {e}")
 
-    def load_records(self, file_name):
-        pass
-        # self.file_name = file_name
+    def next_name(self) -> None:
+        index = self.name_dropdown.currentIndex() + 1
+        if index < self.name_dropdown.count():
+            self.name_dropdown.setCurrentIndex(index)
 
-        # # Load records from records.json file
-        # try:
-        #     with open(file_name, "r") as file:
-        #         records_data = json.load(file)  # Store records
-        #         self.records = [Record(**record) for record in records_data]
-        # except Exception as e:
-        #     self.records = []  # Default to empty list if loading fails
-
-        # self.display_records()
-        # self.records_saved = True
-        # self.update_save_status()
+    def prev_name(self) -> None:
+        index = self.name_dropdown.currentIndex() - 1
+        if index >= 0:
+            self.name_dropdown.setCurrentIndex(index)
 
     def display_records(self):
         self.record_list.clear()
