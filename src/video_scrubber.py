@@ -45,7 +45,8 @@ class MainWindow(QMainWindow):
         self.timer_.setInterval(int(1000 / 24))  # will be overridden by video loader
         self.timer_.timeout.connect(self.advance_frame)
         self.frame_index_ = 0
-        self.playback_speed_ = 1  # Playback speed multiplier
+        self.last_play_direction: int = 1
+        self.playback_speed_: int = 0  # Playback speed multiplier
         self.folder_path_ = Path("data")
         self.current_video_index_ = 0
         self.frame_count_ = 0
@@ -121,6 +122,7 @@ class MainWindow(QMainWindow):
         statusBar = self.statusBar()
         self.statusLabels_ = {}
         self.statusLabels_["sam2"] = QLabel("")
+        self.statusLabels_["video_speed"] = QLabel("0x")
         self.statusLabels_["video_time"] = QLabel("0s")
         for label in self.statusLabels_.values():
             statusBar.addPermanentWidget(label)
@@ -129,10 +131,11 @@ class MainWindow(QMainWindow):
         self.addAction(
             self.create_action("Play/Pause", self.toggle_play_pause, "Space")
         )
-        self.addAction(self.create_action("Increase Speed", self.increase_speed, "L"))
-        self.addAction(self.create_action("Play Reverse", self.play_reverse, "J"))
         self.addAction(
-            self.create_action("Play Normal Speed", self.play_normal_speed, "K")
+            self.create_action("Speed →", self.increase_speed, Qt.Key.Key_Right)
+        )
+        self.addAction(
+            self.create_action("Speed ←", self.decrease_speed, Qt.Key.Key_Left)
         )
 
         # Load the first video
@@ -224,34 +227,50 @@ class MainWindow(QMainWindow):
 
     def update_window_title(self):
         self.setWindowTitle(
-            f"Video {self.current_video_index_ + 1} out of {len(self.video_files_)}"
+            f"Video {self.current_video_index_ + 1} out of {len(self.video_files_)} - {str(active_db().video_path.name)}"
         )
 
     def toggle_play_pause(self):
-        self.playback_speed_ = math.copysign(1, self.playback_speed_)  # Keep sign
-
-        if self.timer_.isActive():
-            self.timer_.stop()
-            self.play_button.setText("Play")
+        if self.playback_speed_ == 0:
+            self.set_play_speed(self.last_play_direction)
         else:
-            self.timer_.start()
-            self.play_button.setText("Pause")
+            self.set_play_speed(0)
+
+    def ensure_playing(self):
+        self.timer_.start()
+        self.play_button.setText("Pause")
+
+    def ensure_stopped(self):
+        self.timer_.stop()
+        self.play_button.setText("Play")
+
+    def set_play_speed(self, speed: int) -> None:
+        QApplication.sendEvent(
+            self,
+            QStatusTipEvent(f"video_speed:{speed}x"),
+        )
+        self.playback_speed_ = speed
+
+        if speed == 0:
+            self.ensure_stopped()
+        else:
+            self.ensure_playing()
 
     def increase_speed(self):
-        if self.playback_speed_ > 0:
-            self.playback_speed_ += 1
+        if self.playback_speed_ == 0:
+            self.set_play_speed(1)
+        elif self.playback_speed_ > 0:
+            self.set_play_speed(self.playback_speed_ + 1)
         else:
-            self.play_normal_speed()
+            self.set_play_speed(0)
 
-    def play_reverse(self):
-        if self.playback_speed_ < 0:
-            self.playback_speed_ -= 1
+    def decrease_speed(self):
+        if self.playback_speed_ == 0:
+            self.set_play_speed(-1)
+        elif self.playback_speed_ < 0:
+            self.set_play_speed(self.playback_speed_ - 1)
         else:
-            self.play_normal_speed()
-            self.playback_speed_ *= -1
-
-    def play_normal_speed(self):
-        self.playback_speed_ = 1
+            self.set_play_speed(0)
 
     def set_position(self, position):
         if self.video_reader_:
@@ -274,8 +293,10 @@ class MainWindow(QMainWindow):
             return
 
         if index < 0:
+            self.set_play_speed(0)
             index = 0
         elif index >= self.frame_count_:
+            self.set_play_speed(0)
             index = self.frame_count_ - 1
 
         self.frame_index_ = index
