@@ -3,7 +3,6 @@ import logging
 from pathlib import Path
 
 import cv2
-from line_profiler import profile
 from tqdm import tqdm
 
 from utils import pretty_time_delta
@@ -11,7 +10,6 @@ from utils import pretty_time_delta
 logger = logging.getLogger(__name__)
 
 
-@profile
 def detect_motion(
     video_path: Path,
     movement_threshold=0.01,
