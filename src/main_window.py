@@ -389,9 +389,9 @@ class MainWindow(QMainWindow):
 
         # File menu
         file_menu = QMenu("File", self)
-        movement_detection_action = QAction("Movement Detection", self)
-        movement_detection_action.triggered.connect(self.detect_movement)
-        file_menu.addAction(movement_detection_action)
+        motion_detection_action = QAction("Motion Detection", self)
+        motion_detection_action.triggered.connect(self.detect_motion)
+        file_menu.addAction(motion_detection_action)
 
         # Help menu
         help_menu = QMenu("Help", self)
@@ -406,9 +406,9 @@ class MainWindow(QMainWindow):
         # Set the menu bar for the main window
         self.setMenuBar(menu_bar)
 
-    def detect_movement(self):
-        motion_detection_ui = MotionDetectorUi(self.folder_path_)
-        motion_detection_ui.show()
+    def detect_motion(self):
+        self.motion_detection_ui = MotionDetectorUi(self.videos_path)
+        self.motion_detection_ui.show()
 
     def open_help_menu(self):
         """Open the Help menu dialog"""
