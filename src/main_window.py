@@ -28,6 +28,7 @@ from mark_canvas import MarkCanvas
 from serialization import deserialize_database, serialize_database
 from side_menu import SideMenu
 from src.help import HelpMenu
+from src.motion_detector_ui import MotionDetectorUi
 from utils import pretty_time_delta
 
 
@@ -391,8 +392,8 @@ class MainWindow(QMainWindow):
         self.setMenuBar(menu_bar)
 
     def detect_movement(self):
-        """Handle movement detection"""
-        QMessageBox.information(self, "Movement Detection", "Movement Detection started.")
+        motion_detection_ui = MotionDetectorUi(self.folder_path_)
+        motion_detection_ui.show()
 
     def open_help_menu(self):
         """Open the Help menu dialog"""
