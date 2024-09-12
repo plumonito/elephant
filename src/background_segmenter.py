@@ -5,11 +5,9 @@ from PySide6.QtGui import QStatusTipEvent
 from PySide6.QtWidgets import QApplication
 
 from database import DatabaseFrame, Record, active_db
+from drawing import draw_clicks, update_frame_image
 from main_window import MainWindow
 from sam2_processor import Sam2Processor
-
-COLOR_GREEN = np.array([0, 255, 0], dtype=np.uint8).reshape(1, 1, 3)
-COLOR_RED = np.array([0, 0, 255], dtype=np.uint8).reshape(1, 1, 3)
 
 
 class BackgroundSegmenter:
@@ -49,13 +47,15 @@ class BackgroundSegmenter:
                             f"sam2:Segmenting {self.work_queue_.qsize() + 1} frames..."
                         ),
                     )
+
+                # Do a slow segmentation
                 for record in frame.records.values():
                     if record.segmentation is None:
                         # Segment!
                         self.segment_record(frame, record)
 
                 # Combine segmentations into a single image
-                self.update_frame_image(frame)
+                update_frame_image(frame)
 
             # Trigger UI update
             self.window.update_ui(frame_index)
@@ -71,43 +71,3 @@ class BackgroundSegmenter:
                 (frame.original_image.shape[0], frame.original_image.shape[1]), 0
             )
         record.segmentation = mask
-
-    def update_frame_image(self, frame: DatabaseFrame) -> None:
-        mask_colors = np.array(
-            [
-                [255, 0, 0],
-                [0, 255, 0],
-                [0, 0, 255],
-                [255, 0, 255],
-                [255, 255, 0],
-                [0, 255, 255],
-            ],
-            dtype=np.float32,
-        )
-
-        base_alpha = 0.4
-        masked_image = frame.original_image.astype(dtype=np.float32, copy=True)
-        masked_image *= 0.8
-        for i, record in enumerate(frame.records.values()):
-            assert record.segmentation is not None
-            mask = record.segmentation
-            alpha_mask = base_alpha * mask[:, :, np.newaxis]
-            color_mask = mask_colors[i].reshape(1, 1, 3) * mask[:, :, np.newaxis]
-            masked_image = masked_image * (1 - alpha_mask) + alpha_mask * color_mask
-        masked_image = masked_image.astype(np.uint8)
-
-        # Add clicks
-        for record in frame.records.values():
-            for pixelPos in record.positive_points:
-                pixelPos = pixelPos.reshape(-1).astype(np.int32)
-                masked_image[
-                    pixelPos[1] - 5 : pixelPos[1] + 5, pixelPos[0] - 5 : pixelPos[0] + 5
-                ] = COLOR_GREEN
-
-            for pixelPos in record.negative_points:
-                pixelPos = pixelPos.reshape(-1).astype(np.int32)
-                masked_image[
-                    pixelPos[1] - 5 : pixelPos[1] + 5, pixelPos[0] - 5 : pixelPos[0] + 5
-                ] = COLOR_RED
-
-        frame.segmented_image = masked_image

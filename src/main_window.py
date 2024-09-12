@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QMenu,
 )
 
+from drawing import draw_clicks
 from database import active_db, set_db, DatabaseFrame
 from image_label import ImageLabel
 from mark_canvas import MarkCanvas
@@ -358,6 +359,12 @@ class MainWindow(QMainWindow):
                 original_image=self.image_,
             )
             active_db().is_dirty = True
+
+            # Do a quick draw with only clicks for feedback
+            frame = active_db().frames[self.frame_index_]
+            frame.segmented_image = None
+            draw_clicks(frame)
+            self.update_ui(self.frame_index_)
 
             # Request background processing
             self.work_queue_.put(self.frame_index_)
