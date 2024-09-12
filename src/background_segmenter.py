@@ -1,14 +1,12 @@
-import time
+from queue import SimpleQueue
 
 import numpy as np
-
-from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QStatusTipEvent
+from PySide6.QtWidgets import QApplication
 
-from database import active_db, DatabaseFrame, Record
+from database import DatabaseFrame, Record
+from main_window import MainWindow
 from sam2_processor import Sam2Processor
-from video_scrubber import MainWindow
-from queue import SimpleQueue
 
 COLOR_GREEN = np.array([0, 255, 0], dtype=np.uint8).reshape(1, 1, 3)
 COLOR_RED = np.array([0, 0, 255], dtype=np.uint8).reshape(1, 1, 3)
@@ -26,7 +24,6 @@ class BackgroundSegmenter:
             self.sam2_ = None
 
         self.work_queue_ = work_queue
-        # self.ui_queue_ = SimpleQueue()
 
     def run(self) -> None:
         while not self.should_stop:
@@ -39,7 +36,7 @@ class BackgroundSegmenter:
                 QApplication.sendEvent(
                     QApplication.activeWindow(),
                     QStatusTipEvent(
-                        f"sam2:Segmenting {self.work_queue_.qsize()+1} frames..."
+                        f"sam2:Segmenting {self.work_queue_.qsize() + 1} frames..."
                     ),
                 )
             for record in frame.records.values():
@@ -51,7 +48,6 @@ class BackgroundSegmenter:
             self.update_frame_image(frame)
 
             # Trigger UI update
-            # self.ui_queue_.put(frame)
             self.window.update_ui(frame)
 
             if QApplication.activeWindow() is not None:

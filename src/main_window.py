@@ -1,16 +1,14 @@
-import json
-import os
 import datetime
+import json
 import sys
 import time
-import math
 from pathlib import Path
+from queue import SimpleQueue
 
-# from decord import VideoReader
+import PySide6.QtGui as QtGui
 import cv2
 import numpy as np
 from PySide6.QtCore import Qt, QTimer, QEvent
-import PySide6.QtGui as QtGui
 from PySide6.QtGui import QAction, QMouseEvent, QStatusTipEvent
 from PySide6.QtWidgets import (
     QApplication,
@@ -21,20 +19,20 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QWidget,
     QHBoxLayout,
-    QLabel,
+    QLabel, QMenuBar, QMenu,
 )
-from queue import SimpleQueue
 
+from database import active_db, set_db, DatabaseFrame
 from image_label import ImageLabel
 from mark_canvas import MarkCanvas
-from database import active_db, set_db, Database, DatabaseFrame
-from side_menu import SideMenu
 from serialization import deserialize_database, serialize_database
+from side_menu import SideMenu
+from src.help import HelpMenu
 from utils import pretty_time_delta
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, work_queue: SimpleQueue) -> None:
+    def __init__(self, work_queue: SimpleQueue, path: str) -> None:
         super().__init__()
 
         # Initialize variables
@@ -49,7 +47,7 @@ class MainWindow(QMainWindow):
         self.frame_index_ = 0
         self.last_play_direction: int = 1
         self.playback_speed_: int = 0  # Playback speed multiplier
-        self.folder_path_ = Path("data")
+        self.folder_path_ = Path(path)
         self.current_video_index_ = 0
         self.frame_count_ = 0
 
@@ -60,6 +58,8 @@ class MainWindow(QMainWindow):
                 self, "Error", f"No .mp4 files found in the {str(self.folder_path_)}."
             )
             sys.exit()
+
+        self.create_menu_bar()
 
         # Create the central widget
         self.central_widget = QWidget()
@@ -203,7 +203,7 @@ class MainWindow(QMainWindow):
         # Get the first frame to determine the size
         self.original_width = self.video_reader_.get(cv2.CAP_PROP_FRAME_WIDTH)
         self.original_height = self.video_reader_.get(cv2.CAP_PROP_FRAME_HEIGHT)
-        print(f"Image size: {(self.original_width,self.original_height)}")
+        print(f"Image size: {(self.original_width, self.original_height)}")
 
         self.position_slider_.setMaximum(self.frame_count_ - 1)
         self.display_image_by_index(0)
@@ -366,3 +366,35 @@ class MainWindow(QMainWindow):
                 self.image_label_.set_image(frame.segmented_image)
             else:
                 self.image_label_.set_image(frame.original_image)
+
+    def create_menu_bar(self):
+        """Create the top menu bar with File and Help menus"""
+        menu_bar = QMenuBar(self)
+
+        # File menu
+        file_menu = QMenu("File", self)
+        movement_detection_action = QAction("Movement Detection", self)
+        movement_detection_action.triggered.connect(self.detect_movement)
+        file_menu.addAction(movement_detection_action)
+
+        # Help menu
+        help_menu = QMenu("Help", self)
+        help_action = QAction("Help", self)
+        help_action.triggered.connect(self.open_help_menu)
+        help_menu.addAction(help_action)
+
+        # Add menus to the menu bar
+        menu_bar.addMenu(file_menu)
+        menu_bar.addMenu(help_menu)
+
+        # Set the menu bar for the main window
+        self.setMenuBar(menu_bar)
+
+    def detect_movement(self):
+        """Handle movement detection"""
+        QMessageBox.information(self, "Movement Detection", "Movement Detection started.")
+
+    def open_help_menu(self):
+        """Open the Help menu dialog"""
+        help_dialog = HelpMenu()
+        help_dialog.exec()

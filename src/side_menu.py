@@ -1,6 +1,9 @@
 import json
+import sys
 from pathlib import Path
+from queue import SimpleQueue
 
+import PySide6.QtWidgets as QtWidgets
 from PySide6.QtWidgets import (
     QVBoxLayout,
     QComboBox,
@@ -11,12 +14,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QListWidgetItem,
 )
-import PySide6.QtWidgets as QtWidgets
-import PySide6.QtGui as QtGui
-import PySide6.QtCore as QtCore
-from queue import SimpleQueue
 
-from database import active_db, DatabaseFrame, Record
+from database import active_db, Record
 from serialization import serialize_database
 
 
@@ -55,7 +54,7 @@ class SideMenu(QWidget):
 
         # Save button at the bottom
         self.save_button = QPushButton("Save Records")
-        self.save_button.clicked.connect(serialize_database)
+        self.save_button.clicked.connect(self.save_records)
         layout.addWidget(self.save_button)
 
         self.setLayout(layout)
@@ -68,9 +67,12 @@ class SideMenu(QWidget):
         try:
             with path.open("r") as file:
                 names = json.load(file)
-            self.name_dropdown.addItems(names)
+                self.name_dropdown.addItems(names)
         except Exception as e:
-            print(f"Failed to load names from {str(path)}: {e}")
+            QtWidgets.QMessageBox.critical(
+                self, "Error", f"Failed to load names from {str(path)}: \n{e}"
+            )
+            sys.exit()
 
     def next_name(self) -> None:
         index = self.name_dropdown.currentIndex() + 1
@@ -151,3 +153,7 @@ class SideMenu(QWidget):
         else:
             self.save_status_label.setText("All changes saved")
             self.save_status_label.setStyleSheet("color: green;")
+
+    def save_records(self):
+        serialize_database()
+        self.update_save_status()
