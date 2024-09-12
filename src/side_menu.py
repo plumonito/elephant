@@ -128,7 +128,7 @@ class SideMenu(QWidget):
         frame_data.records.pop(record.name)
         frame_data.segmented_image = None
 
-        if len(frame_data.records):
+        if len(frame_data.records) == 0:
             active_db().frames.pop(record.frame)
 
         active_db().is_dirty = True

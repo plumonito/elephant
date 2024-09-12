@@ -69,11 +69,28 @@ class BackgroundSegmenter:
         record.segmentation = mask
 
     def update_frame_image(self, frame: DatabaseFrame) -> None:
+        mask_colors = np.array(
+            [
+                [255, 0, 0],
+                [0, 255, 0],
+                [0, 0, 255],
+                [255, 0, 255],
+                [255, 255, 0],
+                [0, 255, 255],
+            ],
+            dtype=np.float32,
+        )
 
-        masked_image = frame.original_image.copy()
-        for record in frame.records.values():
+        base_alpha = 0.4
+        masked_image = frame.original_image.astype(dtype=np.float32, copy=True)
+        masked_image *= 0.8
+        for i, record in enumerate(frame.records.values()):
             assert record.segmentation is not None
-            masked_image = masked_image * record.segmentation[:, :, np.newaxis]
+            mask = record.segmentation
+            alpha_mask = base_alpha * mask[:, :, np.newaxis]
+            color_mask = mask_colors[i].reshape(1, 1, 3) * mask[:, :, np.newaxis]
+            masked_image = masked_image * (1 - alpha_mask) + alpha_mask * color_mask
+        masked_image = masked_image.astype(np.uint8)
 
         # Add clicks
         for record in frame.records.values():
