@@ -31,7 +31,7 @@ class Sam2Processor:
 
         print("Using sam2 device type: " + self.device_.type)
 
-        sam2_checkpoint = "../sam2_repo/checkpoints/sam2_hiera_large.pt"
+        sam2_checkpoint = "sam2_repo/checkpoints/sam2_hiera_large.pt"
         model_cfg = "sam2_hiera_l.yaml"
 
         sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=self.device_)

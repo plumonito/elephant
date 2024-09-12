@@ -8,10 +8,12 @@ from PySide6.QtWidgets import (
     QPushButton,
     QMessageBox,
     QWidget,
-    QListWidget, QTextEdit, QListWidgetItem,
+    QListWidget,
+    QTextEdit,
+    QListWidgetItem,
 )
 
-from src.motion_detector import detect_motion
+from motion_detector import detect_motion
 
 
 class MotionDetectorUi(QWidget):
@@ -25,7 +27,7 @@ class MotionDetectorUi(QWidget):
         self.init_uI()
 
     def init_uI(self):
-        self.setWindowTitle('Video File Processor')
+        self.setWindowTitle("Video File Processor")
 
         # Layout setup
         layout = QVBoxLayout()
@@ -35,7 +37,7 @@ class MotionDetectorUi(QWidget):
         layout.addWidget(self.file_list)
 
         # Button to process missing files
-        self.process_button = QPushButton('Process All Missing Files')
+        self.process_button = QPushButton("Process All Missing Files")
         self.process_button.clicked.connect(self.process_missing_files)
         layout.addWidget(self.process_button)
 
@@ -53,16 +55,20 @@ class MotionDetectorUi(QWidget):
 
     def populate_file_list(self):
         for video_file in self.video_files_:
-            json_file = video_file.with_suffix('.json')
+            json_file = video_file.with_suffix(".json")
             item = QListWidgetItem(video_file.name)
             if json_file.exists():
-                item.setBackground(QColor('green'))  # Green if .json exists
+                item.setBackground(QColor("green"))  # Green if .json exists
             else:
-                item.setBackground(QColor('red'))  # Red if .json is missing
+                item.setBackground(QColor("red"))  # Red if .json is missing
             self.file_list.addItem(item)
 
     def process_missing_files(self):
-        missing_files = [video_file for video_file in self.video_files_ if not video_file.with_suffix('.json').exists()]
+        missing_files = [
+            video_file
+            for video_file in self.video_files_
+            if not video_file.with_suffix(".json").exists()
+        ]
 
         if not missing_files:
             QMessageBox.information(self, "Info", "No missing files to process.")

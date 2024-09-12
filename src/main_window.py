@@ -19,7 +19,9 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QWidget,
     QHBoxLayout,
-    QLabel, QMenuBar, QMenu,
+    QLabel,
+    QMenuBar,
+    QMenu,
 )
 
 from database import active_db, set_db, DatabaseFrame
@@ -27,8 +29,8 @@ from image_label import ImageLabel
 from mark_canvas import MarkCanvas
 from serialization import deserialize_database, serialize_database
 from side_menu import SideMenu
-from src.help import HelpMenu
-from src.motion_detector_ui import MotionDetectorUi
+from help import HelpMenu
+from motion_detector_ui import MotionDetectorUi
 from utils import pretty_time_delta
 
 

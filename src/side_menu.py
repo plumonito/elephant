@@ -61,20 +61,17 @@ class SideMenu(QWidget):
 
         self.update_save_status()  # Update the save status indicator
 
-    def load_names(self, input_path='names.json'):
-        path = Path(input_path)
+    def load_names(self) -> None:
+        path = Path("names.json")
         try:
             with path.open("r") as file:
                 names = json.load(file)
-                self.name_dropdown.addItems(names)
+            self.name_dropdown.addItems(names)
         except Exception as e:
-            if input_path == "names.json":
-                self.load_names("../names.json")
-            else:
-                QtWidgets.QMessageBox.critical(
-                    self, "Error", f"Failed to load names from {str(path)}: \n{e}"
-                )
-                sys.exit()
+            QtWidgets.QMessageBox.critical(
+                self, "Error", f"Failed to load names from {str(path)}: \n{e}"
+            )
+            sys.exit()
 
     def next_name(self) -> None:
         index = self.name_dropdown.currentIndex() + 1
