@@ -193,7 +193,7 @@ class MainWindow(QMainWindow):
 
         # Submit all frames to background segmenter
         for frame in active_db().frames.values():
-            self.work_queue_.put(frame)
+            self.work_queue_.put(frame.frame)
 
         # Set the timer interval based on the framerate
         self.video_fps_ = self.video_reader_.get(cv2.CAP_PROP_FPS)
@@ -360,15 +360,21 @@ class MainWindow(QMainWindow):
             active_db().is_dirty = True
 
             # Request background processing
-            self.work_queue_.put(active_db().frames[self.frame_index_])
+            self.work_queue_.put(self.frame_index_)
             self.side_menu.on_database_changed()
 
-    def update_ui(self, frame: DatabaseFrame) -> None:
-        if self.frame_index_ == frame.frame:
-            if frame.segmented_image is not None:
-                self.image_label_.set_image(frame.segmented_image)
-            else:
+    def update_ui(self, frame_index: int) -> None:
+        if self.frame_index_ == frame_index:
+            frame = active_db().frames.get(frame_index)
+            if frame is None:
+                # Frame was deleted, show from video
+                self.display_image_by_index(frame_index)
+            elif frame.segmented_image is None:
+                # No segmentation, show cached original image
                 self.image_label_.set_image(frame.original_image)
+            else:
+                # Show segmenation result
+                self.image_label_.set_image(frame.segmented_image)
 
     def create_menu_bar(self):
         """Create the top menu bar with File and Help menus"""

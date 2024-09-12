@@ -4,7 +4,7 @@ import numpy as np
 from PySide6.QtGui import QStatusTipEvent
 from PySide6.QtWidgets import QApplication
 
-from database import DatabaseFrame, Record
+from database import DatabaseFrame, Record, active_db
 from main_window import MainWindow
 from sam2_processor import Sam2Processor
 
@@ -27,34 +27,38 @@ class BackgroundSegmenter:
 
     def run(self) -> None:
         while not self.should_stop:
-            try:
-                frame: DatabaseFrame = self.work_queue_.get(block=True, timeout=0.5)
-            except:
-                continue
-
-            if QApplication.activeWindow() is not None:
-                QApplication.sendEvent(
-                    QApplication.activeWindow(),
-                    QStatusTipEvent(
-                        f"sam2:Segmenting {self.work_queue_.qsize() + 1} frames..."
-                    ),
-                )
-            for record in frame.records.values():
-                if record.segmentation is None:
-                    # Segment!
-                    self.segment_record(frame, record)
-
-            # Combine segmentations into a single image
-            self.update_frame_image(frame)
-
-            # Trigger UI update
-            self.window.update_ui(frame)
-
             if QApplication.activeWindow() is not None:
                 if self.work_queue_.empty():
                     QApplication.sendEvent(
                         QApplication.activeWindow(), QStatusTipEvent("sam2:Ready")
                     )
+
+            try:
+                frame_index: int = self.work_queue_.get(block=True, timeout=0.5)
+            except:
+                continue
+
+            frame = active_db().frames.get(frame_index)
+
+            # Check that frame was not deleted
+            if frame is not None:
+                if QApplication.activeWindow() is not None:
+                    QApplication.sendEvent(
+                        QApplication.activeWindow(),
+                        QStatusTipEvent(
+                            f"sam2:Segmenting {self.work_queue_.qsize() + 1} frames..."
+                        ),
+                    )
+                for record in frame.records.values():
+                    if record.segmentation is None:
+                        # Segment!
+                        self.segment_record(frame, record)
+
+                # Combine segmentations into a single image
+                self.update_frame_image(frame)
+
+            # Trigger UI update
+            self.window.update_ui(frame_index)
 
     def segment_record(self, frame: DatabaseFrame, record: Record) -> None:
         if self.sam2_:

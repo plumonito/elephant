@@ -133,7 +133,7 @@ class SideMenu(QWidget):
 
         active_db().is_dirty = True
         # Request background processing
-        self.work_queue_.put(active_db().frames[record.frame])
+        self.work_queue_.put(record.frame)
 
         self.display_records()
         self.update_save_status()
