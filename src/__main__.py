@@ -1,22 +1,22 @@
 import sys
 import threading
 from queue import SimpleQueue
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QFileDialog
 from background_segmenter import BackgroundSegmenter
 from main_window import MainWindow
-from folder_picker import FolderPicker
 
 
-def open_main_app(folder_path, folder_picker_window) -> None:
-    """
-    Function to open the main app once a folder is selected in FolderPicker.
-    """
-    # Close the folder picker window (optional, if you want to hide it)
-    folder_picker_window.close()
+if __name__ == "__main__":
+    # Create the application instance
+    app = QApplication(sys.argv)
+
+    videos_path = QFileDialog.getExistingDirectory(
+        None, "Select the folder with videos"
+    )
 
     # Create the work queue and main window
     work_queue = SimpleQueue()
-    main_win = MainWindow(work_queue, folder_path)
+    main_win = MainWindow(work_queue, videos_path)
 
     # Initialize and start the background segmenter thread
     segmenter = BackgroundSegmenter(main_win, work_queue)
@@ -29,23 +29,8 @@ def open_main_app(folder_path, folder_picker_window) -> None:
 
     # Show the main application window
     main_win.show()
+    ret_value = app.exec()
 
+    segmenter.should_stop = True
 
-if __name__ == "__main__":
-    # Create the application instance
-    app = QApplication(sys.argv)
-
-    # Create the FolderPicker window
-    window = FolderPicker()
-    window.setWindowTitle("Select Video Folder")
-    window.resize(400, 50)
-
-    # Connect the folder_selected signal to the open_main_app function
-    # We now also pass the 'window' instance to allow closing the folder picker
-    window.folder_selected.connect(lambda folder: open_main_app(folder, window))
-
-    # Show the folder picker window
-    window.show()
-
-    # Start the event loop
-    sys.exit(app.exec())
+    sys.exit(ret_value)

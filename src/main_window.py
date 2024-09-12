@@ -35,7 +35,7 @@ from utils import pretty_time_delta
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, work_queue: SimpleQueue, path: str) -> None:
+    def __init__(self, work_queue: SimpleQueue, videos_path: str) -> None:
         super().__init__()
 
         # Initialize variables
@@ -50,15 +50,15 @@ class MainWindow(QMainWindow):
         self.frame_index_ = 0
         self.last_play_direction: int = 1
         self.playback_speed_: int = 0  # Playback speed multiplier
-        self.folder_path_ = Path(path)
+        self.videos_path = Path(videos_path)
         self.current_video_index_ = 0
         self.frame_count_ = 0
 
         # Load video files
-        self.video_files_ = list(self.folder_path_.glob("*.mp4"))
+        self.video_files_ = list(self.videos_path.glob("*.mp4"))
         if not self.video_files_:
             QMessageBox.critical(
-                self, "Error", f"No .mp4 files found in the {str(self.folder_path_)}."
+                self, "Error", f"No .mp4 files found in the {str(self.videos_path)}."
             )
             sys.exit()
 
